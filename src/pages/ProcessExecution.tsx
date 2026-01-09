@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { sendTelegramNotification } from '@/lib/telegram'
 import { Database } from '@/lib/database.types'
-import { Play, CheckCircle, Clock, Pause, XCircle, ChevronRight, AlertTriangle, Beaker, FlaskConical } from 'lucide-react'
+import { Play, CheckCircle, Clock, Pause, XCircle, ChevronRight, AlertTriangle, Beaker, FlaskConical, QrCode } from 'lucide-react'
+import { QRScanner } from '@/components/ui/QRScanner'
 
 type ExecutedProcess = Database['public']['Tables']['executed_processes']['Row'] & {
   process_templates?: { name: string; template_code: string } | null
@@ -68,6 +70,38 @@ export function ProcessExecutionPage() {
     cell_concentration: ''
   })
   const [ccaWarning, setCcaWarning] = useState<{ passed: boolean; message: string } | null>(null)
+
+  // QR Scanner state
+  const [showScanner, setShowScanner] = useState(false)
+  const [scannedEquipment, setScannedEquipment] = useState<string | null>(null)
+
+  // Timer state
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Start timer when step begins
+  useEffect(() => {
+    const step = executedSteps[currentStepIndex]
+    if (step?.status === 'in_progress' && step.started_at) {
+      const startTime = new Date(step.started_at).getTime()
+      const updateTimer = () => {
+        const now = Date.now()
+        setElapsedSeconds(Math.floor((now - startTime) / 1000))
+      }
+      updateTimer()
+      timerRef.current = setInterval(updateTimer, 1000)
+    } else {
+      setElapsedSeconds(0)
+      if (timerRef.current) clearInterval(timerRef.current)
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+  }, [currentStepIndex, executedSteps])
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60)
+    const s = seconds % 60
+    return `${m}:${s.toString().padStart(2, '0')}`
+  }
 
   useEffect(() => {
     fetchData()
@@ -273,6 +307,18 @@ export function ProcessExecutionPage() {
     // Если CCA fail - создаём Deviation
     if (!ccaResult.passed) {
       await createDeviationForCCAFail(step, ccaResult)
+    }
+
+    // Отправка уведомления в Telegram
+    try {
+      const stepName = step.process_template_steps?.step_name || 'Шаг'
+      const processCode = selectedProcess?.process_code || ''
+      const message = ccaResult.passed 
+        ? `✅ Шаг "${stepName}" завершён (${processCode})`
+        : `⚠️ CCA fail: "${stepName}" (${processCode}). Требуется решение QP.`
+      await sendTelegramNotification(message, ccaResult.passed ? 'info' : 'warning')
+    } catch (e) {
+      console.error('Telegram notification failed:', e)
     }
 
     // Check if all steps completed
@@ -548,11 +594,25 @@ export function ProcessExecutionPage() {
 
                   {currentStep.status === 'in_progress' && (
                     <div className="space-y-4">
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                        <p className="text-sm text-blue-700">
-                          <Clock className="h-4 w-4 inline mr-1" />
-                          Шаг начат: {currentStep.started_at ? new Date(currentStep.started_at).toLocaleTimeString('ru') : '-'}
-                        </p>
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm text-blue-700">
+                            <Clock className="h-4 w-4 inline mr-1" />
+                            Шаг начат: {currentStep.started_at ? new Date(currentStep.started_at).toLocaleTimeString('ru') : '-'}
+                          </p>
+                          <div className="text-right">
+                            <div className="text-2xl font-mono font-bold text-blue-800">{formatTime(elapsedSeconds)}</div>
+                            <div className="text-xs text-blue-600">
+                              Ожидаемое: {currentStep.process_template_steps?.expected_duration_minutes || 0} мин
+                            </div>
+                          </div>
+                        </div>
+                        {currentStep.process_template_steps?.expected_duration_minutes && 
+                         elapsedSeconds < (currentStep.process_template_steps.expected_duration_minutes * 60) && (
+                          <div className="mt-2 bg-amber-100 text-amber-800 text-xs p-2 rounded">
+                            ⏱️ Минимальное время ещё не прошло
+                          </div>
+                        )}
                       </div>
 
                       <div>
@@ -565,6 +625,42 @@ export function ProcessExecutionPage() {
                           />
                           <span className="text-sm font-medium">Подтверждаю ознакомление с СОП</span>
                         </label>
+                      </div>
+
+                      {/* Equipment Scan */}
+                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-medium text-slate-800 flex items-center gap-2">
+                              <QrCode className="h-4 w-4" />
+                              Оборудование
+                            </h4>
+                            <p className="text-xs text-slate-500 mt-1">
+                              Отсканируйте или введите код оборудования
+                            </p>
+                          </div>
+                          {scannedEquipment ? (
+                            <div className="flex items-center gap-2">
+                              <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-lg font-mono text-sm">
+                                {scannedEquipment}
+                              </span>
+                              <button
+                                onClick={() => setScannedEquipment(null)}
+                                className="text-slate-400 hover:text-slate-600"
+                              >
+                                <XCircle className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setShowScanner(true)}
+                              className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm"
+                            >
+                              <QrCode className="h-4 w-4" />
+                              Сканировать
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       {/* CCA параметры */}
@@ -654,6 +750,18 @@ export function ProcessExecutionPage() {
           </div>
         </div>
       )}
+
+      {/* QR Scanner Modal */}
+      <QRScanner
+        isOpen={showScanner}
+        onClose={() => setShowScanner(false)}
+        onScan={(code) => {
+          setScannedEquipment(code)
+          setShowScanner(false)
+        }}
+        title="Сканировать оборудование"
+        expectedPrefix="EQP-"
+      />
     </div>
   )
 }

@@ -5,7 +5,7 @@ interface NotifyOptions {
   message: string
 }
 
-export async function sendTelegramNotification({ chat_id, message }: NotifyOptions) {
+export async function sendTelegramNotificationToChat({ chat_id, message }: NotifyOptions) {
   try {
     const { data, error } = await supabase.functions.invoke('telegram-notify', {
       body: { chat_id, message }
@@ -15,6 +15,36 @@ export async function sendTelegramNotification({ chat_id, message }: NotifyOptio
     return { success: true, data }
   } catch (err) {
     console.error('Telegram notification error:', err)
+    return { success: false, error: err }
+  }
+}
+
+// Broadcast уведомление всем подписанным пользователям
+export async function sendTelegramNotification(message: string, type: 'info' | 'warning' | 'error' = 'info') {
+  try {
+    // Получаем всех пользователей с telegram_chat_id
+    const { data: users } = await supabase
+      .from('users')
+      .select('telegram_chat_id')
+      .not('telegram_chat_id', 'is', null)
+    
+    if (!users || users.length === 0) {
+      console.log('No Telegram subscribers found')
+      return { success: true, sent: 0 }
+    }
+
+    const results = await Promise.all(
+      users.map(user => 
+        sendTelegramNotificationToChat({ 
+          chat_id: user.telegram_chat_id!, 
+          message 
+        })
+      )
+    )
+    
+    return { success: true, sent: results.filter(r => r.success).length }
+  } catch (err) {
+    console.error('Broadcast notification error:', err)
     return { success: false, error: err }
   }
 }

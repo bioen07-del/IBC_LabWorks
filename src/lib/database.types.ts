@@ -316,6 +316,47 @@ export type Database = {
           },
         ]
       }
+      culture_history: {
+        Row: {
+          action: string
+          culture_id: number | null
+          description: string | null
+          id: number
+          new_values: Json | null
+          old_values: Json | null
+          performed_at: string | null
+          performed_by: string | null
+        }
+        Insert: {
+          action: string
+          culture_id?: number | null
+          description?: string | null
+          id?: number
+          new_values?: Json | null
+          old_values?: Json | null
+          performed_at?: string | null
+          performed_by?: string | null
+        }
+        Update: {
+          action?: string
+          culture_id?: number | null
+          description?: string | null
+          id?: number
+          new_values?: Json | null
+          old_values?: Json | null
+          performed_at?: string | null
+          performed_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "culture_history_culture_id_fkey"
+            columns: ["culture_id"]
+            isOneToOne: false
+            referencedRelation: "cultures"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cultures: {
         Row: {
           cell_type: string
@@ -1906,6 +1947,36 @@ export type Database = {
           },
         ]
       }
+      user_settings: {
+        Row: {
+          created_at: string | null
+          email_notifications: boolean | null
+          id: number
+          notifications_enabled: boolean | null
+          telegram_chat_id: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email_notifications?: boolean | null
+          id?: number
+          notifications_enabled?: boolean | null
+          telegram_chat_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email_notifications?: boolean | null
+          id?: number
+          notifications_enabled?: boolean | null
+          telegram_chat_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       users: {
         Row: {
           created_at: string
@@ -1916,6 +1987,7 @@ export type Database = {
           last_login_at: string | null
           password_hash: string | null
           role: Database["public"]["Enums"]["user_role"]
+          telegram_chat_id: string | null
           updated_at: string
           username: string
         }
@@ -1928,6 +2000,7 @@ export type Database = {
           last_login_at?: string | null
           password_hash?: string | null
           role?: Database["public"]["Enums"]["user_role"]
+          telegram_chat_id?: string | null
           updated_at?: string
           username: string
         }
@@ -1940,6 +2013,7 @@ export type Database = {
           last_login_at?: string | null
           password_hash?: string | null
           role?: Database["public"]["Enums"]["user_role"]
+          telegram_chat_id?: string | null
           updated_at?: string
           username?: string
         }

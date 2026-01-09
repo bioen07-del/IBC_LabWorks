@@ -8,7 +8,9 @@ import {
   CheckCircle,
   Wrench,
   QrCode,
-  X
+  X,
+  Pencil,
+  Trash2
 } from 'lucide-react'
 
 interface Equipment {
@@ -43,6 +45,7 @@ export function EquipmentPage() {
   const [locations, setLocations] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
+  const [editingId, setEditingId] = useState<number | null>(null)
   const [formData, setFormData] = useState({
     equipment_code: '',
     equipment_name: '',
@@ -76,18 +79,47 @@ export function EquipmentPage() {
     return `EQ-${Date.now().toString(36).toUpperCase()}`
   }
 
-  const handleCreate = async () => {
-    await supabase.from('equipment').insert({
+  const handleSave = async () => {
+    const payload = {
       equipment_code: formData.equipment_code || generateCode(),
       equipment_name: formData.equipment_name,
       equipment_type: formData.equipment_type as any,
       status: formData.status as any,
       location_id: formData.location_id ? parseInt(formData.location_id) : null,
       calibration_valid_until: formData.calibration_valid_until || null
-    })
-    setShowModal(false)
-    setFormData({ equipment_code: '', equipment_name: '', equipment_type: 'other', status: 'operational', location_id: '', calibration_valid_until: '' })
+    }
+    if (editingId) {
+      await supabase.from('equipment').update(payload).eq('id', editingId)
+    } else {
+      await supabase.from('equipment').insert(payload)
+    }
+    closeModal()
     loadEquipment()
+  }
+
+  const handleEdit = (item: Equipment) => {
+    setEditingId(item.id)
+    setFormData({
+      equipment_code: item.equipment_code,
+      equipment_name: item.equipment_name,
+      equipment_type: item.equipment_type,
+      status: item.status,
+      location_id: item.location_id?.toString() || '',
+      calibration_valid_until: item.calibration_valid_until || ''
+    })
+    setShowModal(true)
+  }
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('Удалить оборудование?')) return
+    await supabase.from('equipment').delete().eq('id', id)
+    loadEquipment()
+  }
+
+  const closeModal = () => {
+    setShowModal(false)
+    setEditingId(null)
+    setFormData({ equipment_code: '', equipment_name: '', equipment_type: 'other', status: 'operational', location_id: '', calibration_valid_until: '' })
   }
 
   function daysUntilCalibration(validUntil: string | null) {
@@ -131,6 +163,7 @@ export function EquipmentPage() {
                 <th className="text-left px-6 py-3 text-xs font-medium text-slate-500 uppercase">Локация</th>
                 <th className="text-left px-6 py-3 text-xs font-medium text-slate-500 uppercase">Статус</th>
                 <th className="text-left px-6 py-3 text-xs font-medium text-slate-500 uppercase">Калибровка</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-slate-500 uppercase">Действия</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -158,6 +191,22 @@ export function EquipmentPage() {
                         </span>
                       ) : <span className="text-slate-400">-</span>}
                     </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleEdit(item)}
+                          className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(item.id)}
+                          className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 )
               })}
@@ -171,8 +220,8 @@ export function EquipmentPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">Новое оборудование</h2>
-              <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-700">
+              <h2 className="text-xl font-bold">{editingId ? 'Редактировать' : 'Новое оборудование'}</h2>
+              <button onClick={closeModal} className="text-gray-500 hover:text-gray-700">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -246,15 +295,15 @@ export function EquipmentPage() {
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              <button onClick={() => setShowModal(false)} className="px-4 py-2 border rounded hover:bg-gray-50">
+              <button onClick={closeModal} className="px-4 py-2 border rounded hover:bg-gray-50">
                 Отмена
               </button>
               <button
-                onClick={handleCreate}
+                onClick={handleSave}
                 disabled={!formData.equipment_name}
                 className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50"
               >
-                Создать
+                {editingId ? 'Сохранить' : 'Создать'}
               </button>
             </div>
           </div>

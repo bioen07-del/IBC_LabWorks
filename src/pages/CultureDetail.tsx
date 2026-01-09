@@ -21,7 +21,9 @@ import {
   ShieldX,
   GitBranch,
   X,
-  Check
+  Check,
+  Link2,
+  ArrowRight
 } from 'lucide-react'
 
 type Culture = Tables<'cultures'> & {
@@ -616,6 +618,62 @@ export function CultureDetail() {
           <div className="p-8 text-center text-slate-500">
             <Package className="h-12 w-12 mx-auto mb-3 text-slate-300" />
             <p>Контейнеры не найдены</p>
+          </div>
+        )}
+      </div>
+
+      {/* Traceability */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Link2 className="h-5 w-5 text-slate-400" />
+          <h2 className="font-semibold text-slate-900">Прослеживаемость</h2>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {culture.donations?.donors && (
+            <Link 
+              to={`/donors/${culture.donations.donors.id}`}
+              className="flex items-center gap-2 px-3 py-2 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors"
+            >
+              <User className="h-4 w-4 text-purple-600" />
+              <span className="text-sm font-medium text-purple-700">
+                Донор: {culture.donations.donors.donor_code}
+              </span>
+            </Link>
+          )}
+          <ArrowRight className="h-4 w-4 text-slate-300" />
+          {culture.donations && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+              <Droplets className="h-4 w-4 text-blue-600" />
+              <span className="text-sm font-medium text-blue-700">
+                Донация: {culture.donations.donation_code}
+              </span>
+            </div>
+          )}
+          <ArrowRight className="h-4 w-4 text-slate-300" />
+          <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg">
+            <FlaskConical className="h-4 w-4 text-emerald-600" />
+            <span className="text-sm font-medium text-emerald-700">
+              Культура: {culture.culture_code} (P{culture.current_passage})
+            </span>
+          </div>
+          {containers.filter(c => c.status === 'frozen').length > 0 && (
+            <>
+              <ArrowRight className="h-4 w-4 text-slate-300" />
+              <div className="flex items-center gap-2 px-3 py-2 bg-cyan-50 border border-cyan-200 rounded-lg">
+                <Snowflake className="h-4 w-4 text-cyan-600" />
+                <span className="text-sm font-medium text-cyan-700">
+                  Банк: {containers.filter(c => c.status === 'frozen').length} криовиал
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+        {culture.combined_media_batches && (
+          <div className="mt-3 pt-3 border-t border-slate-100">
+            <span className="text-xs text-slate-500">Среда: </span>
+            <span className="text-sm text-slate-700">
+              {culture.combined_media_batches.batch_code} ({culture.combined_media_batches.media_recipes?.recipe_name})
+            </span>
           </div>
         )}
       </div>
