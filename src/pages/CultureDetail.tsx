@@ -523,8 +523,9 @@ export function CultureDetail() {
             </div>
           </div>
 
+          {/* UX-3: Quick Actions */}
           <div className="flex items-center gap-3">
-            {/* Dropdown: Начать процесс */}
+            <span className="text-xs text-slate-400 mr-1">⚡</span>
             <div className="relative">
               <button
                 onClick={() => setShowProcessDropdown(!showProcessDropdown)}
