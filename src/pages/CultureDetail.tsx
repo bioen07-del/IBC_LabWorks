@@ -103,10 +103,12 @@ export function CultureDetail() {
   const [processTemplates, setProcessTemplates] = useState<ProcessTemplate[]>([])
   const [showProcessDropdown, setShowProcessDropdown] = useState(false)
   const [startingProcess, setStartingProcess] = useState(false)
-  // CONTAINER-002: Гибкий выбор дочерних контейнеров
-  const [containerTypes, setContainerTypes] = useState<{id: number; type_code: string; type_name: string}[]>([])
-  const [childContainerTypeId, setChildContainerTypeId] = useState<number | null>(null)
-  const [childContainerCount, setChildContainerCount] = useState(2)
+  // CONTAINER-002: Гибкий выбор дочерних контейнеров - ОБНОВЛЕНО для множественных групп
+  const [containerTypes, setContainerTypes] = useState<{id: number; type_code: string; type_name: string; surface_area_cm2?: number}[]>([])
+  // Множественные группы контейнеров (Задача 2)
+  const [containerGroups, setContainerGroups] = useState<{type_id: number | null; count: number}[]>([
+    { type_id: null, count: 2 }
+  ])
 
   useEffect(() => {
     if (id) {
@@ -120,10 +122,37 @@ export function CultureDetail() {
   async function loadContainerTypes() {
     const { data } = await supabase
       .from('container_types')
-      .select('id, type_code, type_name')
+      .select('id, type_code, type_name, surface_area_cm2')
       .eq('is_active', true)
       .order('type_name')
     setContainerTypes(data || [])
+  }
+
+  // Функции для работы с группами контейнеров (Задача 2)
+  const addContainerGroup = () => {
+    setContainerGroups([...containerGroups, { type_id: null, count: 1 }])
+  }
+
+  const removeContainerGroup = (index: number) => {
+    if (containerGroups.length > 1) {
+      setContainerGroups(containerGroups.filter((_, i) => i !== index))
+    }
+  }
+
+  const updateContainerGroup = (index: number, field: 'type_id' | 'count', value: any) => {
+    const updated = [...containerGroups]
+    updated[index] = { ...updated[index], [field]: value }
+    setContainerGroups(updated)
+  }
+
+  const getTotalChildCount = () => containerGroups.reduce((sum, g) => sum + g.count, 0)
+
+  const getTotalArea = () => {
+    return containerGroups.reduce((sum, g) => {
+      const type = containerTypes.find(t => t.id === g.type_id) as any
+      const area = type?.surface_area_cm2 || 0
+      return sum + (area * g.count)
+    }, 0)
   }
 
   async function loadProcessTemplates() {
@@ -320,26 +349,29 @@ export function CultureDetail() {
     setPassaging(true)
     
     const newPassage = culture.current_passage + 1
-    // CONTAINER-002: используем выбранный тип и количество
-    const useTypeId = childContainerTypeId || containers.find(c => selectedContainers.includes(c.id))?.container_type_id
-    const totalChildCount = childContainerCount
+    const sourceContainer = containers.find(c => selectedContainers.includes(c.id))
+    const defaultTypeId = sourceContainer?.container_type_id || 1
     
     try {
-      // Создаём новые контейнеры
-      const newContainers = []
-      const sourceContainer = containers.find(c => selectedContainers.includes(c.id))
+      // ЗАДАЧА 2: Создаём контейнеры по группам (разные типы)
+      const newContainers: any[] = []
+      let containerIndex = 1
       
-      for (let i = 1; i <= totalChildCount; i++) {
-        newContainers.push({
-          culture_id: culture.id,
-          container_type_id: useTypeId || 1,
-          location_id: sourceContainer?.location_id,
-          container_code: `${culture.culture_code}-P${newPassage}-${i}`,
-          passage_number: newPassage,
-          split_index: i,
-          status: 'active',
-          created_at: new Date().toISOString()
-        })
+      for (const group of containerGroups) {
+        const typeId = group.type_id || defaultTypeId
+        for (let i = 0; i < group.count; i++) {
+          newContainers.push({
+            culture_id: culture.id,
+            container_type_id: typeId,
+            location_id: sourceContainer?.location_id,
+            container_code: `${culture.culture_code}-P${newPassage}-${containerIndex}`,
+            passage_number: newPassage,
+            split_index: containerIndex,
+            status: 'active',
+            created_at: new Date().toISOString()
+          })
+          containerIndex++
+        }
       }
       
       // Вставляем новые контейнеры
@@ -354,19 +386,22 @@ export function CultureDetail() {
       // Обновляем current_passage культуры
       await supabase.from('cultures').update({ current_passage: newPassage }).eq('id', culture.id)
       
-      // Логируем в историю
-      const typeName = containerTypes.find(t => t.id === useTypeId)?.type_name || 'N/A'
+      // Логируем в историю - описание групп
+      const groupsDescription = containerGroups.map(g => {
+        const typeName = containerTypes.find(t => t.id === g.type_id)?.type_name || 'того же типа'
+        return `${g.count}×${typeName}`
+      }).join(' + ')
+      
       await logHistory(
         'Пассирование',
-        `P${culture.current_passage} → P${newPassage}, создано ${totalChildCount}×${typeName}`,
+        `P${culture.current_passage} → P${newPassage}, создано ${groupsDescription}`,
         { passage: culture.current_passage },
-        { passage: newPassage, containers: totalChildCount, container_type: typeName }
+        { passage: newPassage, containers: getTotalChildCount(), groups: containerGroups }
       )
       
       setShowPassageModal(false)
       setSelectedContainers([])
-      setChildContainerTypeId(null)
-      setChildContainerCount(2)
+      setContainerGroups([{ type_id: null, count: 2 }])
       loadCulture()
     } catch (error) {
       console.error('Error passaging:', error)
@@ -1064,62 +1099,86 @@ export function CultureDetail() {
                 </div>
               </div>
 
-              {/* CONTAINER-002: Конфигурация дочерних контейнеров */}
+              {/* ЗАДАЧА 2: Множественные группы контейнеров */}
               <div className="border-t pt-4">
-                <label className="block text-sm font-medium mb-2">Дочерние контейнеры</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-slate-500 mb-1">Тип контейнера</label>
-                    <select
-                      value={childContainerTypeId || ''}
-                      onChange={e => setChildContainerTypeId(e.target.value ? parseInt(e.target.value) : null)}
-                      className="w-full px-3 py-2 border rounded-lg text-sm"
-                    >
-                      <option value="">Тот же тип</option>
-                      {containerTypes.map(t => (
-                        <option key={t.id} value={t.id}>{t.type_name} ({t.type_code})</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-slate-500 mb-1">Количество</label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={20}
-                      value={childContainerCount}
-                      onChange={e => setChildContainerCount(parseInt(e.target.value) || 1)}
-                      className="w-full px-3 py-2 border rounded-lg text-sm"
-                    />
-                  </div>
+                <div className="flex justify-between items-center mb-3">
+                  <label className="text-sm font-medium">Конфигурация дочерних контейнеров</label>
+                  <button
+                    type="button"
+                    onClick={addContainerGroup}
+                    className="px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200"
+                  >
+                    + Добавить группу
+                  </button>
+                </div>
+                
+                <div className="space-y-3">
+                  {containerGroups.map((group, idx) => (
+                    <div key={idx} className="flex gap-3 items-end p-3 border border-slate-200 rounded-lg bg-slate-50">
+                      <div className="flex-1">
+                        <label className="block text-xs text-slate-500 mb-1">Тип</label>
+                        <select
+                          value={group.type_id || ''}
+                          onChange={e => updateContainerGroup(idx, 'type_id', e.target.value ? parseInt(e.target.value) : null)}
+                          className="w-full px-3 py-2 border rounded-lg text-sm"
+                        >
+                          <option value="">Тот же тип</option>
+                          {containerTypes.map(t => (
+                            <option key={t.id} value={t.id}>
+                              {t.type_name} {t.surface_area_cm2 ? `(${t.surface_area_cm2} см²)` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="w-24">
+                        <label className="block text-xs text-slate-500 mb-1">Кол-во</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={20}
+                          value={group.count}
+                          onChange={e => updateContainerGroup(idx, 'count', parseInt(e.target.value) || 1)}
+                          className="w-full px-3 py-2 border rounded-lg text-sm"
+                        />
+                      </div>
+                      {containerGroups.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeContainerGroup(idx)}
+                          className="p-2 text-red-500 hover:bg-red-50 rounded"
+                          title="Удалить группу"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              <div className="bg-slate-50 rounded-lg p-3 space-y-2">
-                <p className="text-sm text-slate-600">
-                  <strong>Результат:</strong> {selectedContainers.length} контейнер(ов) → {childContainerCount}× {containerTypes.find(t => t.id === childContainerTypeId)?.type_name || 'того же типа'} (P{culture.current_passage + 1})
+              <div className="bg-purple-50 rounded-lg p-3 space-y-2">
+                <p className="text-sm text-purple-800 font-medium">
+                  Итого будет создано:
                 </p>
-                {/* UX-1: Расчёт площади */}
-                {(() => {
-                  const selectedType = containerTypes.find(t => t.id === childContainerTypeId) as any
-                  const parentType = containers.find(c => selectedContainers.includes(c.id))?.container_types as any
-                  const area = selectedType?.surface_area_cm2 || parentType?.surface_area_cm2 || 0
-                  const totalArea = area * childContainerCount
-                  return totalArea > 0 ? (
-                    <>
-                      <p className="text-xs text-slate-500">
-                        📐 Общая площадь: <strong>{totalArea.toLocaleString()} см²</strong>
-                        {totalArea >= 500 && <span className="ml-2 text-emerald-600">✓ Scale-up</span>}
-                      </p>
-                      {/* UX-2: Предупреждение о смене типа */}
-                      {childContainerTypeId && parentType && selectedType?.type_code !== parentType?.type_code && (
-                        <p className="text-xs text-amber-600 mt-1">
-                          ⚠️ Смена типа контейнера: {parentType?.type_code} → {selectedType?.type_code}
-                        </p>
-                      )}
-                    </>
-                  ) : null
-                })()}
+                {containerGroups.map((g, i) => {
+                  const type = containerTypes.find(t => t.id === g.type_id)
+                  const typeName = type?.type_name || 'того же типа'
+                  const area = (type as any)?.surface_area_cm2 || 0
+                  return (
+                    <p key={i} className="text-sm text-purple-700">
+                      • {g.count}× {typeName} {area ? `(${area * g.count} см²)` : ''}
+                    </p>
+                  )
+                })}
+                <div className="pt-2 border-t border-purple-200 mt-2">
+                  <p className="text-xs text-purple-600">
+                    📐 Общая площадь: <strong>{getTotalArea().toLocaleString()} см²</strong>
+                    {getTotalArea() >= 500 && <span className="ml-2 text-emerald-600">✓ Scale-up</span>}
+                  </p>
+                  <p className="text-xs text-purple-600">
+                    Split ratio: 1:{getTotalChildCount() / Math.max(selectedContainers.length, 1)}
+                  </p>
+                </div>
               </div>
 
               <button
