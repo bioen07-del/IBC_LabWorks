@@ -46,6 +46,7 @@ export function CultureNew() {
     at_risk: false,
     at_risk_reason: '',
     container_type_id: '',
+    container_qty: '1', // Количество контейнеров
     media_batch_id: '',
     initial_volume_ml: '',
     cell_concentration: '',
@@ -160,30 +161,35 @@ export function CultureNew() {
 
       // Get container type code
       const containerType = containerTypes.find(t => t.id === parseInt(form.container_type_id))
+      const containerQty = parseInt(form.container_qty) || 1
 
-      // Generate container code
-      const { data: containerCode } = await supabase.rpc('generate_container_code', {
-        p_container_type_code: containerType?.type_code || 'FL',
-        p_culture_code: cultureCode,
-        p_passage: 0,
-        p_split_index: 1
-      })
+      // Create multiple containers (P0-1, P0-2, ...)
+      const containersToInsert = []
+      for (let i = 1; i <= containerQty; i++) {
+        const { data: containerCode } = await supabase.rpc('generate_container_code', {
+          p_container_type_code: containerType?.type_code || 'FL',
+          p_culture_code: cultureCode,
+          p_passage: 0,
+          p_split_index: i
+        })
 
-      // Create initial container (P0)
-      const { error: containerError } = await supabase
-        .from('containers')
-        .insert({
-          container_code: containerCode || `${cultureCode}-P0-1`,
+        containersToInsert.push({
+          container_code: containerCode || `${cultureCode}-P0-${i}`,
           culture_id: culture.id,
           container_type_id: parseInt(form.container_type_id),
           passage_number: 0,
-          split_index: 1,
+          split_index: i,
           status: 'active',
           quality_hold: 'none',
           volume_ml: form.initial_volume_ml ? parseFloat(form.initial_volume_ml) : null,
           cell_concentration: form.cell_concentration ? parseFloat(form.cell_concentration) : null,
           viability_percent: form.viability_percent ? parseFloat(form.viability_percent) : null,
         })
+      }
+
+      const { error: containerError } = await supabase
+        .from('containers')
+        .insert(containersToInsert)
 
       if (containerError) throw containerError
 
@@ -357,7 +363,7 @@ export function CultureNew() {
               <div className="border-t border-slate-200 pt-6">
                 <h3 className="font-medium text-slate-900 mb-4">Первичный контейнер (P0)</h3>
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
                       Тип контейнера <span className="text-red-500">*</span>
@@ -375,6 +381,21 @@ export function CultureNew() {
                         </option>
                       ))}
                     </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Количество <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={form.container_qty}
+                      onChange={(e) => setForm({ ...form, container_qty: e.target.value })}
+                      required
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">Например: 2 × T75</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">

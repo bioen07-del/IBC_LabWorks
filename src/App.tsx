@@ -69,6 +69,7 @@ function App() {
             <Route path="donors/:id/donations/new" element={<DonationNew />} />
             <Route path="orders" element={<OrdersPage />} />
             <Route path="processes" element={<ProcessExecutionPage />} />
+            <Route path="processes/:id/execute" element={<ProcessExecutionPage />} />
             <Route path="inventory" element={<InventoryPage />} />
             <Route path="media" element={<CombinedMediaPage />} />
             <Route path="media-recipes" element={<MediaRecipesPage />} />

@@ -1,10 +1,21 @@
 import { useEffect, useState } from 'react'
 import { supabase, Tables } from '@/lib/supabase'
 import { 
-  Plus, Search, User, Shield, Clock, CheckCircle, XCircle
+  Plus, Search, User, Shield, Clock, CheckCircle, XCircle, X, Edit2
 } from 'lucide-react'
 
 type UserRecord = Tables<'users'>
+
+type UserRole = 'admin' | 'qp' | 'qc' | 'operator' | 'viewer'
+
+type UserForm = {
+  id?: number
+  username: string
+  email: string
+  full_name: string
+  role: UserRole
+  is_active: boolean
+}
 
 const roleLabels: Record<string, string> = {
   admin: 'Администратор',
@@ -22,14 +33,67 @@ const roleColors: Record<string, string> = {
   viewer: 'bg-slate-100 text-slate-600',
 }
 
+const emptyForm: UserForm = {
+  username: '', email: '', full_name: '', role: 'operator', is_active: true
+}
+
 export function UsersPage() {
   const [users, setUsers] = useState<UserRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [showModal, setShowModal] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState<UserForm>(emptyForm)
 
   useEffect(() => {
     loadUsers()
   }, [])
+
+  function openCreate() {
+    setForm(emptyForm)
+    setShowModal(true)
+  }
+
+  function openEdit(user: UserRecord) {
+    setForm({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      full_name: user.full_name,
+      role: user.role,
+      is_active: user.is_active
+    })
+    setShowModal(true)
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      if (form.id) {
+        await supabase.from('users').update({
+          username: form.username,
+          email: form.email,
+          full_name: form.full_name,
+          role: form.role,
+          is_active: form.is_active
+        }).eq('id', form.id)
+      } else {
+        await supabase.from('users').insert({
+          username: form.username,
+          email: form.email,
+          full_name: form.full_name,
+          role: form.role,
+          is_active: form.is_active
+        })
+      }
+      setShowModal(false)
+      loadUsers()
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   async function loadUsers() {
     try {
@@ -60,7 +124,10 @@ export function UsersPage() {
           <h1 className="text-2xl font-bold text-slate-900">Пользователи</h1>
           <p className="text-slate-500 mt-1">Управление учётными записями и ролями</p>
         </div>
-        <button className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-emerald-700 transition-colors flex items-center gap-2">
+        <button 
+          onClick={openCreate}
+          className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-emerald-700 transition-colors flex items-center gap-2"
+        >
           <Plus className="h-5 w-5" />
           Добавить пользователя
         </button>
@@ -93,6 +160,7 @@ export function UsersPage() {
                   <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Роль</th>
                   <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Статус</th>
                   <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Последний вход</th>
+                  <th className="text-left px-4 py-3 text-sm font-medium text-slate-600"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -136,6 +204,11 @@ export function UsersPage() {
                         <span className="text-slate-400">—</span>
                       )}
                     </td>
+                    <td className="px-4 py-3">
+                      <button onClick={() => openEdit(user)} className="p-2 hover:bg-slate-100 rounded-lg">
+                        <Edit2 className="h-4 w-4 text-slate-500" />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -143,6 +216,59 @@ export function UsersPage() {
           </div>
         )}
       </div>
+
+      {/* Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl w-full max-w-md p-6 shadow-2xl">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold">{form.id ? 'Редактирование' : 'Новый пользователь'}</h2>
+              <button onClick={() => setShowModal(false)} className="p-1 hover:bg-slate-100 rounded">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Имя пользователя *</label>
+                <input type="text" value={form.username} onChange={e => setForm({...form, username: e.target.value})}
+                  className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">ФИО *</label>
+                <input type="text" value={form.full_name} onChange={e => setForm({...form, full_name: e.target.value})}
+                  className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Email *</label>
+                <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})}
+                  className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Роль</label>
+                <select value={form.role} onChange={e => setForm({...form, role: e.target.value as UserRole})}
+                  className="w-full px-3 py-2 border rounded-lg">
+                  <option value="admin">Администратор</option>
+                  <option value="qp">Уполномоченное лицо (QP)</option>
+                  <option value="qc">Контроль качества (QC)</option>
+                  <option value="operator">Оператор</option>
+                  <option value="viewer">Наблюдатель</option>
+                </select>
+              </div>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={form.is_active} onChange={e => setForm({...form, is_active: e.target.checked})} />
+                <span>Активен</span>
+              </label>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button onClick={() => setShowModal(false)} className="px-4 py-2 border rounded-lg">Отмена</button>
+              <button onClick={handleSave} disabled={saving} 
+                className="px-4 py-2 bg-emerald-600 text-white rounded-lg disabled:opacity-50">
+                {saving ? 'Сохранение...' : 'Сохранить'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

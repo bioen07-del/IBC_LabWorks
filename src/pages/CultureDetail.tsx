@@ -26,8 +26,16 @@ import {
   Link2,
   ArrowRight,
   TrendingUp,
-  BarChart3
+  BarChart3,
+  Play,
+  Loader2
 } from 'lucide-react'
+
+type ProcessTemplate = {
+  id: number
+  template_code: string
+  name: string
+}
 
 type Culture = Tables<'cultures'> & {
   donations: {
@@ -92,13 +100,99 @@ export function CultureDetail() {
   const [viabilityPostThaw, setViabilityPostThaw] = useState('')
   const [history, setHistory] = useState<any[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
+  const [processTemplates, setProcessTemplates] = useState<ProcessTemplate[]>([])
+  const [showProcessDropdown, setShowProcessDropdown] = useState(false)
+  const [startingProcess, setStartingProcess] = useState(false)
+  // CONTAINER-002: Гибкий выбор дочерних контейнеров
+  const [containerTypes, setContainerTypes] = useState<{id: number; type_code: string; type_name: string}[]>([])
+  const [childContainerTypeId, setChildContainerTypeId] = useState<number | null>(null)
+  const [childContainerCount, setChildContainerCount] = useState(2)
 
   useEffect(() => {
     if (id) {
       loadCulture()
       loadHistory()
+      loadProcessTemplates()
+      loadContainerTypes()
     }
   }, [id])
+
+  async function loadContainerTypes() {
+    const { data } = await supabase
+      .from('container_types')
+      .select('id, type_code, type_name')
+      .eq('is_active', true)
+      .order('type_name')
+    setContainerTypes(data || [])
+  }
+
+  async function loadProcessTemplates() {
+    const { data } = await supabase
+      .from('process_templates')
+      .select('id, template_code, name')
+      .order('id')
+    setProcessTemplates(data || [])
+  }
+
+  async function handleStartProcess(templateId: number) {
+    if (!culture) return
+    setStartingProcess(true)
+    setShowProcessDropdown(false)
+    
+    try {
+      // 1. Получаем шаблон и его шаги
+      const { data: template } = await supabase
+        .from('process_templates')
+        .select('*, process_template_steps(*)')
+        .eq('id', templateId)
+        .single()
+      
+      if (!template) throw new Error('Template not found')
+      
+      // 2. Создаём executed_process
+      const processCode = `EP-${Date.now()}`
+      const { data: newProcess, error: processError } = await (supabase
+        .from('executed_processes') as any)
+        .insert({
+          process_code: processCode,
+          process_template_id: templateId,
+          culture_id: culture.id,
+          status: 'in_progress',
+          started_at: new Date().toISOString(),
+          started_by_user_id: getCurrentUserId()
+        })
+        .select()
+        .single()
+      
+      if (processError) throw processError
+      
+      // 3. Копируем шаги в executed_steps
+      const steps = (template as any).process_template_steps || []
+      if (steps.length > 0) {
+        const executedSteps = steps.map((step: any, idx: number) => ({
+          executed_process_id: newProcess.id,
+          step_order: step.step_order || idx + 1,
+          step_name: step.step_name,
+          step_type: step.step_type,
+          instructions: step.instructions,
+          equipment_required: step.equipment_required,
+          duration_minutes: step.duration_minutes,
+          is_critical: step.is_critical,
+          status: idx === 0 ? 'in_progress' : 'pending'
+        }))
+        
+        await (supabase.from('executed_steps') as any).insert(executedSteps)
+      }
+      
+      // 4. Перенаправляем на страницу выполнения
+      navigate(`/processes/${newProcess.id}/execute`)
+    } catch (error) {
+      console.error('Error starting process:', error)
+      alert('Ошибка при запуске процесса')
+    } finally {
+      setStartingProcess(false)
+    }
+  }
 
   async function loadHistory() {
     setLoadingHistory(true)
@@ -225,28 +319,27 @@ export function CultureDetail() {
     if (selectedContainers.length === 0) return
     setPassaging(true)
     
-    const ratio = parseInt(splitRatio.split(':')[1]) // 1:2 -> 2, 1:3 -> 3
     const newPassage = culture.current_passage + 1
+    // CONTAINER-002: используем выбранный тип и количество
+    const useTypeId = childContainerTypeId || containers.find(c => selectedContainers.includes(c.id))?.container_type_id
+    const totalChildCount = childContainerCount
     
     try {
       // Создаём новые контейнеры
       const newContainers = []
-      for (const containerId of selectedContainers) {
-        const sourceContainer = containers.find(c => c.id === containerId)
-        if (!sourceContainer) continue
-        
-        for (let i = 1; i <= ratio; i++) {
-          newContainers.push({
-            culture_id: culture.id,
-            container_type_id: sourceContainer.container_type_id,
-            location_id: sourceContainer.location_id,
-            container_code: `${culture.culture_code}-P${newPassage}-${i}`,
-            passage_number: newPassage,
-            split_index: i,
-            status: 'active',
-            created_at: new Date().toISOString()
-          })
-        }
+      const sourceContainer = containers.find(c => selectedContainers.includes(c.id))
+      
+      for (let i = 1; i <= totalChildCount; i++) {
+        newContainers.push({
+          culture_id: culture.id,
+          container_type_id: useTypeId || 1,
+          location_id: sourceContainer?.location_id,
+          container_code: `${culture.culture_code}-P${newPassage}-${i}`,
+          passage_number: newPassage,
+          split_index: i,
+          status: 'active',
+          created_at: new Date().toISOString()
+        })
       }
       
       // Вставляем новые контейнеры
@@ -262,15 +355,18 @@ export function CultureDetail() {
       await supabase.from('cultures').update({ current_passage: newPassage }).eq('id', culture.id)
       
       // Логируем в историю
+      const typeName = containerTypes.find(t => t.id === useTypeId)?.type_name || 'N/A'
       await logHistory(
         'Пассирование',
-        `P${culture.current_passage} → P${newPassage}, коэффициент ${splitRatio}, создано ${selectedContainers.length * ratio} контейнеров`,
+        `P${culture.current_passage} → P${newPassage}, создано ${totalChildCount}×${typeName}`,
         { passage: culture.current_passage },
-        { passage: newPassage, containers: selectedContainers.length * ratio }
+        { passage: newPassage, containers: totalChildCount, container_type: typeName }
       )
       
       setShowPassageModal(false)
       setSelectedContainers([])
+      setChildContainerTypeId(null)
+      setChildContainerCount(2)
       loadCulture()
     } catch (error) {
       console.error('Error passaging:', error)
@@ -428,6 +524,35 @@ export function CultureDetail() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Dropdown: Начать процесс */}
+            <div className="relative">
+              <button
+                onClick={() => setShowProcessDropdown(!showProcessDropdown)}
+                disabled={startingProcess}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {startingProcess ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                Начать процесс
+                <ChevronDown className="h-4 w-4" />
+              </button>
+              {showProcessDropdown && (
+                <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-lg border border-slate-200 z-50 max-h-80 overflow-y-auto">
+                  <div className="p-2">
+                    <p className="px-3 py-2 text-xs font-medium text-slate-500 uppercase">Выберите процесс</p>
+                    {processTemplates.map(t => (
+                      <button
+                        key={t.id}
+                        onClick={() => handleStartProcess(t.id)}
+                        className="w-full text-left px-3 py-2 hover:bg-slate-100 rounded-lg text-sm"
+                      >
+                        <span className="font-mono text-xs text-slate-400">{t.template_code}</span>
+                        <span className="ml-2">{t.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
             {culture.status === 'active' && activeContainers > 0 && (
               <button
                 onClick={() => setShowPassageModal(true)}
@@ -930,24 +1055,40 @@ export function CultureDetail() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-2">Коэффициент разведения</label>
-                <div className="flex gap-2">
-                  {['1:2', '1:3', '1:4', '1:5'].map(r => (
-                    <button
-                      key={r}
-                      onClick={() => setSplitRatio(r)}
-                      className={`px-4 py-2 rounded-lg border ${splitRatio === r ? 'bg-purple-100 border-purple-500 text-purple-700' : 'border-slate-200 hover:bg-slate-50'}`}
+              {/* CONTAINER-002: Конфигурация дочерних контейнеров */}
+              <div className="border-t pt-4">
+                <label className="block text-sm font-medium mb-2">Дочерние контейнеры</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Тип контейнера</label>
+                    <select
+                      value={childContainerTypeId || ''}
+                      onChange={e => setChildContainerTypeId(e.target.value ? parseInt(e.target.value) : null)}
+                      className="w-full px-3 py-2 border rounded-lg text-sm"
                     >
-                      {r}
-                    </button>
-                  ))}
+                      <option value="">Тот же тип</option>
+                      {containerTypes.map(t => (
+                        <option key={t.id} value={t.id}>{t.type_name} ({t.type_code})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Количество</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={childContainerCount}
+                      onChange={e => setChildContainerCount(parseInt(e.target.value) || 1)}
+                      className="w-full px-3 py-2 border rounded-lg text-sm"
+                    />
+                  </div>
                 </div>
               </div>
 
               <div className="bg-slate-50 rounded-lg p-3">
                 <p className="text-sm text-slate-600">
-                  <strong>Результат:</strong> {selectedContainers.length} контейнер(ов) → {selectedContainers.length * parseInt(splitRatio.split(':')[1])} новых контейнеров P{culture.current_passage + 1}
+                  <strong>Результат:</strong> {selectedContainers.length} контейнер(ов) → {childContainerCount}× {containerTypes.find(t => t.id === childContainerTypeId)?.type_name || 'того же типа'} (P{culture.current_passage + 1})
                 </p>
               </div>
 

@@ -21,7 +21,13 @@ export function SettingsPage() {
   const [settings, setSettings] = useState({
     telegram_chat_id: '',
     notifications_enabled: true,
-    email_notifications: true
+    email_notifications: true,
+    // Детальные настройки по типам событий
+    notify_deviations: true,
+    notify_new_cultures: true,
+    notify_qc_results: true,
+    notify_approvals: true,
+    notify_expiring_batches: true
   })
 
   useEffect(() => {
@@ -42,7 +48,12 @@ export function SettingsPage() {
         setSettings({
           telegram_chat_id: data.telegram_chat_id || '',
           notifications_enabled: data.notifications_enabled ?? true,
-          email_notifications: data.email_notifications ?? true
+          email_notifications: data.email_notifications ?? true,
+          notify_deviations: data.notify_deviations ?? true,
+          notify_new_cultures: data.notify_new_cultures ?? true,
+          notify_qc_results: data.notify_qc_results ?? true,
+          notify_approvals: data.notify_approvals ?? true,
+          notify_expiring_batches: data.notify_expiring_batches ?? true
         })
       }
     } catch (error) {
@@ -64,6 +75,11 @@ export function SettingsPage() {
           telegram_chat_id: settings.telegram_chat_id || null,
           notifications_enabled: settings.notifications_enabled,
           email_notifications: settings.email_notifications,
+          notify_deviations: settings.notify_deviations,
+          notify_new_cultures: settings.notify_new_cultures,
+          notify_qc_results: settings.notify_qc_results,
+          notify_approvals: settings.notify_approvals,
+          notify_expiring_batches: settings.notify_expiring_batches,
           updated_at: new Date().toISOString()
         }, { onConflict: 'user_id' })
 
@@ -173,6 +189,33 @@ export function SettingsPage() {
               className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
             />
           </label>
+        </div>
+      </div>
+
+      {/* Notification Types */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h2 className="font-semibold text-slate-900 mb-4">Типы событий</h2>
+        <div className="space-y-3">
+          {[
+            { key: 'notify_deviations', label: 'Отклонения и девиации', desc: 'Уведомления о зарегистрированных отклонениях' },
+            { key: 'notify_new_cultures', label: 'Новые культуры', desc: 'Создание культур из донаций' },
+            { key: 'notify_qc_results', label: 'Результаты QC', desc: 'Результаты контроля качества' },
+            { key: 'notify_approvals', label: 'Одобрения', desc: 'Решения QP по донациям и релизам' },
+            { key: 'notify_expiring_batches', label: 'Истекающие партии', desc: 'Предупреждения о сроках годности' },
+          ].map(item => (
+            <label key={item.key} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg cursor-pointer hover:bg-slate-100">
+              <div>
+                <div className="font-medium text-slate-700">{item.label}</div>
+                <div className="text-xs text-slate-500">{item.desc}</div>
+              </div>
+              <input
+                type="checkbox"
+                checked={settings[item.key as keyof typeof settings] as boolean}
+                onChange={e => setSettings({ ...settings, [item.key]: e.target.checked })}
+                className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+              />
+            </label>
+          ))}
         </div>
       </div>
 

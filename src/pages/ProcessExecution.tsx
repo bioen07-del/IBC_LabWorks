@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { getCurrentUserId } from '@/hooks/useAuth'
 import { sendTelegramNotification } from '@/lib/telegram'
 import { Database } from '@/lib/database.types'
-import { Play, CheckCircle, Clock, Pause, XCircle, ChevronRight, AlertTriangle, Beaker, FlaskConical, QrCode } from 'lucide-react'
+import { Play, CheckCircle, Clock, Pause, XCircle, ChevronRight, AlertTriangle, Beaker, FlaskConical, QrCode, AlertCircle } from 'lucide-react'
+import { CellCountingForm, MediaChangeForm, BankingForm } from '@/components/processes/step-forms'
 import { QRScanner } from '@/components/ui/QRScanner'
 
 type ExecutedProcess = Database['public']['Tables']['executed_processes']['Row'] & {
@@ -71,6 +73,9 @@ export function ProcessExecutionPage() {
     cell_concentration: ''
   })
   const [ccaWarning, setCcaWarning] = useState<{ passed: boolean; message: string } | null>(null)
+  
+  // Step form data from specialized forms
+  const [stepFormData, setStepFormData] = useState<any>(null)
 
   // QR Scanner state
   const [showScanner, setShowScanner] = useState(false)
@@ -345,6 +350,72 @@ export function ProcessExecutionPage() {
       setStepForm({ notes: '', recorded_parameters: {}, sop_confirmed: false, viability_percent: '', cell_concentration: '' })
       setCcaWarning(null)
     }
+  }
+
+  // Render specialized step forms based on step_type
+  function renderStepForm() {
+    const step = executedSteps[currentStepIndex]
+    if (!step || !selectedProcess?.culture_id) return null
+    
+    const stepType = step.process_template_steps?.step_type
+    const isCritical = step.process_template_steps?.is_critical
+    
+    return (
+      <>
+        {/* Critical step warning */}
+        {isCritical && (
+          <div className="bg-red-50 border border-red-300 rounded-lg p-3 flex items-start gap-2">
+            <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium text-red-800">⚠️ Критический шаг</p>
+              <p className="text-xs text-red-700">Данные проверяются CCA. При fail контейнеры блокируются.</p>
+            </div>
+          </div>
+        )}
+        
+        {stepType === 'cell_counting' && (
+          <CellCountingForm
+            cultureId={selectedProcess.culture_id}
+            stepId={step.id}
+            onDataChange={(data) => {
+              setStepFormData(data)
+              // Update main form with aggregated data
+              setStepForm(prev => ({
+                ...prev,
+                viability_percent: data.avgViability.toString(),
+                cell_concentration: (data.totalCells / 1000000).toString()
+              }))
+            }}
+          />
+        )}
+        
+        {stepType === 'media_change' && (
+          <MediaChangeForm
+            cultureId={selectedProcess.culture_id}
+            onDataChange={(data) => {
+              setStepFormData(data)
+              setStepForm(prev => ({
+                ...prev,
+                recorded_parameters: { ...prev.recorded_parameters, ...data }
+              }))
+            }}
+          />
+        )}
+        
+        {stepType === 'banking' && (
+          <BankingForm
+            cultureId={selectedProcess.culture_id}
+            onDataChange={(data) => {
+              setStepFormData(data)
+              setStepForm(prev => ({
+                ...prev,
+                recorded_parameters: { ...prev.recorded_parameters, ...data }
+              }))
+            }}
+          />
+        )}
+      </>
+    )
   }
 
   const activeProcesses = processes.filter(p => p.status === 'in_progress' || p.status === 'paused')
@@ -664,41 +735,46 @@ export function ProcessExecutionPage() {
                         </div>
                       </div>
 
-                      {/* CCA параметры */}
-                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                        <h4 className="font-medium text-amber-800 mb-3 flex items-center gap-2">
-                          <Beaker className="h-4 w-4" />
-                          CCA параметры (Critical Control Attributes)
-                        </h4>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium mb-1">Viability, %</label>
-                            <input
-                              type="number"
-                              step="0.1"
-                              min="0"
-                              max="100"
-                              value={stepForm.viability_percent}
-                              onChange={(e) => setStepForm({...stepForm, viability_percent: e.target.value})}
-                              className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                              placeholder="напр. 85.5"
-                            />
-                            <p className="text-xs text-slate-500 mt-1">Минимум: 80%</p>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium mb-1">Концентрация кл/мл</label>
-                            <input
-                              type="number"
-                              step="1000"
-                              min="0"
-                              value={stepForm.cell_concentration}
-                              onChange={(e) => setStepForm({...stepForm, cell_concentration: e.target.value})}
-                              className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                              placeholder="напр. 500000"
-                            />
+                      {/* Specialized Step Forms */}
+                      {renderStepForm()}
+
+                      {/* Fallback CCA параметры (if no specialized form) */}
+                      {!['cell_counting', 'media_change', 'banking'].includes(currentStep.process_template_steps?.step_type || '') && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                          <h4 className="font-medium text-amber-800 mb-3 flex items-center gap-2">
+                            <Beaker className="h-4 w-4" />
+                            CCA параметры (Critical Control Attributes)
+                          </h4>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium mb-1">Viability, %</label>
+                              <input
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                max="100"
+                                value={stepForm.viability_percent}
+                                onChange={(e) => setStepForm({...stepForm, viability_percent: e.target.value})}
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                                placeholder="напр. 85.5"
+                              />
+                              <p className="text-xs text-slate-500 mt-1">Минимум: 80%</p>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium mb-1">Концентрация кл/мл</label>
+                              <input
+                                type="number"
+                                step="1000"
+                                min="0"
+                                value={stepForm.cell_concentration}
+                                onChange={(e) => setStepForm({...stepForm, cell_concentration: e.target.value})}
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                                placeholder="напр. 500000"
+                              />
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      )}
 
                       {/* CCA Warning */}
                       {ccaWarning && !ccaWarning.passed && (

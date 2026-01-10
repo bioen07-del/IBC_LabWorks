@@ -35,6 +35,11 @@ export function DonorDetail() {
   const [form, setForm] = useState<Partial<Donor>>({})
   const [approving, setApproving] = useState<number | null>(null)
   const [changingStatus, setChangingStatus] = useState(false)
+  // Серология
+  const [showSerologyModal, setShowSerologyModal] = useState(false)
+  const [serologyDonationId, setSerologyDonationId] = useState<number | null>(null)
+  const [serologyForm, setSerologyForm] = useState<{hiv: 'pending'|'negative'|'positive'; hbv: 'pending'|'negative'|'positive'; hcv: 'pending'|'negative'|'positive'; syphilis: 'pending'|'negative'|'positive'}>({ hiv: 'pending', hbv: 'pending', hcv: 'pending', syphilis: 'pending' })
+  const [savingSerology, setSavingSerology] = useState(false)
 
   useEffect(() => {
     if (id) loadDonor()
@@ -113,6 +118,36 @@ export function DonorDetail() {
       alert('Ошибка при изменении статуса')
     } finally {
       setChangingStatus(false)
+    }
+  }
+
+  function openSerologyModal(donation: Donation) {
+    setSerologyDonationId(donation.id)
+    setSerologyForm({
+      hiv: (donation.serology_hiv as any) || 'pending',
+      hbv: (donation.serology_hbv as any) || 'pending',
+      hcv: (donation.serology_hcv as any) || 'pending',
+      syphilis: (donation.serology_syphilis as any) || 'pending'
+    })
+    setShowSerologyModal(true)
+  }
+
+  async function saveSerology() {
+    if (!serologyDonationId) return
+    setSavingSerology(true)
+    try {
+      await supabase.from('donations').update({
+        serology_hiv: serologyForm.hiv,
+        serology_hbv: serologyForm.hbv,
+        serology_hcv: serologyForm.hcv,
+        serology_syphilis: serologyForm.syphilis
+      }).eq('id', serologyDonationId)
+      setShowSerologyModal(false)
+      loadDonor()
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setSavingSerology(false)
     }
   }
 
@@ -424,16 +459,23 @@ export function DonorDetail() {
                     </div>
 
                     <div className="flex flex-col items-end gap-2">
-                      <div className="flex gap-1.5 text-xs">
-                        <span className={`px-1.5 py-0.5 rounded ${serologyLabels[donation.serology_hiv].color}`}>
-                          HIV:{serologyLabels[donation.serology_hiv].label}
-                        </span>
-                        <span className={`px-1.5 py-0.5 rounded ${serologyLabels[donation.serology_hbv].color}`}>
-                          HBV:{serologyLabels[donation.serology_hbv].label}
-                        </span>
-                        <span className={`px-1.5 py-0.5 rounded ${serologyLabels[donation.serology_hcv].color}`}>
-                          HCV:{serologyLabels[donation.serology_hcv].label}
-                        </span>
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1.5 text-xs">
+                          <span className={`px-1.5 py-0.5 rounded ${serologyLabels[donation.serology_hiv].color}`}>
+                            HIV:{serologyLabels[donation.serology_hiv].label}
+                          </span>
+                          <span className={`px-1.5 py-0.5 rounded ${serologyLabels[donation.serology_hbv].color}`}>
+                            HBV:{serologyLabels[donation.serology_hbv].label}
+                          </span>
+                          <span className={`px-1.5 py-0.5 rounded ${serologyLabels[donation.serology_hcv].color}`}>
+                            HCV:{serologyLabels[donation.serology_hcv].label}
+                          </span>
+                        </div>
+                        {donation.status === 'received' && (
+                          <button onClick={() => openSerologyModal(donation)} className="p-1 hover:bg-slate-100 rounded" title="Редактировать серологию">
+                            <Edit2 className="h-3.5 w-3.5 text-slate-500" />
+                          </button>
+                        )}
                       </div>
                       {donation.status === 'received' && (user?.role === 'qp' || user?.role === 'admin') && (
                         <div className="flex gap-1.5">
@@ -485,6 +527,42 @@ export function DonorDetail() {
           )}
         </div>
       </div>
+
+      {/* Serology Modal */}
+      {showSerologyModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold">Редактирование серологии</h2>
+              <button onClick={() => setShowSerologyModal(false)}><X className="h-5 w-5" /></button>
+            </div>
+            <div className="space-y-3">
+              {(['hiv', 'hbv', 'hcv', 'syphilis'] as const).map(test => (
+                <div key={test} className="flex items-center justify-between">
+                  <label className="font-medium uppercase">{test}</label>
+                  <div className="flex gap-2">
+                    {(['negative', 'pending', 'positive'] as const).map(val => (
+                      <button
+                        key={val}
+                        onClick={() => setSerologyForm({...serologyForm, [test]: val} as any)}
+                        className={`px-3 py-1 rounded text-sm ${serologyForm[test] === val ? serologyLabels[val].color + ' ring-2 ring-offset-1' : 'bg-slate-100'}`}
+                      >
+                        {serologyLabels[val].label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button onClick={() => setShowSerologyModal(false)} className="px-4 py-2 border rounded-lg">Отмена</button>
+              <button onClick={saveSerology} disabled={savingSerology} className="px-4 py-2 bg-emerald-600 text-white rounded-lg disabled:opacity-50">
+                {savingSerology ? 'Сохранение...' : 'Сохранить'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
