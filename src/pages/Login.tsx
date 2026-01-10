@@ -1,7 +1,15 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
-import { FlaskConical, LogIn, AlertCircle } from 'lucide-react'
+import { FlaskConical, LogIn, AlertCircle, Shield, ShieldCheck, Microscope, User, Eye } from 'lucide-react'
+
+const QUICK_LOGIN_USERS = [
+  { email: 'admin@bmcp.lab', role: 'admin', name: 'Администратор', icon: Shield, color: 'bg-purple-100 text-purple-700 hover:bg-purple-200' },
+  { email: 'qp@bmcp.lab', role: 'qp', name: 'QP (Уполн. лицо)', icon: ShieldCheck, color: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' },
+  { email: 'qc@bmcp.lab', role: 'qc', name: 'QC (Контроль)', icon: Microscope, color: 'bg-blue-100 text-blue-700 hover:bg-blue-200' },
+  { email: 'operator@bmcp.lab', role: 'operator', name: 'Оператор', icon: User, color: 'bg-amber-100 text-amber-700 hover:bg-amber-200' },
+  { email: 'viewer@bmcp.lab', role: 'viewer', name: 'Наблюдатель', icon: Eye, color: 'bg-slate-100 text-slate-700 hover:bg-slate-200' },
+]
 
 export function Login() {
   const [email, setEmail] = useState('')
@@ -20,6 +28,18 @@ export function Login() {
     
     if (error) {
       setError('Неверный email или пароль')
+      setLoading(false)
+    } else {
+      navigate('/')
+    }
+  }
+
+  const handleQuickLogin = async (userEmail: string) => {
+    setError('')
+    setLoading(true)
+    const { error } = await signIn(userEmail, '')
+    if (error) {
+      setError(error.message || 'Ошибка входа')
       setLoading(false)
     } else {
       navigate('/')
@@ -54,7 +74,7 @@ export function Login() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              placeholder="operator@lab.ru"
+              placeholder="operator@bmcp.lab"
               required
             />
           </div>
@@ -90,21 +110,37 @@ export function Login() {
         </form>
 
         <div className="mt-6 pt-6 border-t border-slate-200">
-          <p className="text-center text-sm text-slate-500 mb-3">Быстрый вход для тестирования</p>
-          <button
-            type="button"
-            onClick={() => {
-              setEmail('qmxzvygv@minimax.com')
-              setPassword('milSUilsi5')
-            }}
-            className="w-full bg-slate-100 text-slate-700 py-2 rounded-lg text-sm hover:bg-slate-200 transition-colors"
-          >
-            Заполнить тестовые данные
-          </button>
+          <p className="text-center text-sm text-slate-500 mb-3">Быстрый вход (демо)</p>
+          <div className="grid grid-cols-1 gap-2">
+            {QUICK_LOGIN_USERS.map((user) => (
+              <button
+                key={user.email}
+                type="button"
+                onClick={() => handleQuickLogin(user.email)}
+                disabled={loading}
+                className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${user.color}`}
+              >
+                <user.icon className="w-5 h-5" />
+                <span className="flex-1 text-left">{user.name}</span>
+                <span className="text-xs opacity-70">{user.role}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-6 p-4 bg-slate-50 rounded-lg">
+          <p className="text-xs text-slate-500 text-center">
+            <strong>Роли и права:</strong><br/>
+            <span className="text-purple-600">Admin</span> — полный доступ |{' '}
+            <span className="text-emerald-600">QP</span> — релиз продуктов |{' '}
+            <span className="text-blue-600">QC</span> — контроль качества<br/>
+            <span className="text-amber-600">Operator</span> — производство |{' '}
+            <span className="text-slate-600">Viewer</span> — только просмотр
+          </p>
         </div>
 
         <p className="text-center text-slate-400 text-sm mt-6">
-          GMP-совместимая система
+          GMP-совместимая система v1.0.1
         </p>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase, Tables } from '@/lib/supabase'
+import { getCurrentUserId } from '@/hooks/useAuth'
 import { ArrowLeft, Save, Droplet, AlertTriangle, FileText } from 'lucide-react'
 
 type Donor = Tables<'donors'>
@@ -23,8 +24,10 @@ export function DonationNew() {
     tissue_type: '',
     cell_type: '',
     collection_method: '',
+    collection_site: '',
     volume_ml: '',
     consent_confirmed: false,
+    consent_form_number: '',
     contract_number: '',
     contract_date: '',
     serology_hiv: 'pending',
@@ -54,10 +57,10 @@ export function DonationNew() {
     const checks: DonorCheck[] = []
     
     // 1. Check donor status
-    if ((donorData as any).status !== 'active' && (donorData as any).status !== 'eligible') {
+    if (!donorData.is_active) {
       checks.push({
         type: 'error',
-        message: `Донор имеет статус "${(donorData as any).status || 'неизвестен'}". Донация невозможна.`
+        message: `Донор неактивен. Сначала активируйте донора через QP.`
       })
     }
     
@@ -145,9 +148,12 @@ export function DonationNew() {
           tissue_type: form.tissue_type,
           cell_type: form.cell_type,
           collection_method: form.collection_method || null,
+          collection_site: form.collection_site || null,
           volume_ml: form.volume_ml ? parseFloat(form.volume_ml) : null,
           consent_confirmed: form.consent_confirmed,
+          consent_form_number: form.consent_form_number || null,
           contract_number: form.contract_number || null,
+          created_by_user_id: getCurrentUserId(),
           contract_date: form.contract_date || null,
           serology_hiv: form.serology_hiv as any,
           serology_hbv: form.serology_hbv as any,
@@ -309,6 +315,17 @@ export function DonationNew() {
             </div>
 
             <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Место забора</label>
+              <input
+                type="text"
+                value={form.collection_site}
+                onChange={(e) => setForm({ ...form, collection_site: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                placeholder="Клиника №1, Операционная 3"
+              />
+            </div>
+
+            <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 {currentUnit === 'ml' ? 'Объём' : 'Масса'} ({unitLabel})
               </label>
@@ -326,7 +343,7 @@ export function DonationNew() {
             </div>
           </div>
 
-          <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-3">
             <label className="flex items-center gap-3 cursor-pointer">
               <input
                 type="checkbox"
@@ -338,6 +355,18 @@ export function DonationNew() {
                 Подтверждаю наличие информированного согласия донора
               </span>
             </label>
+            {form.consent_confirmed && (
+              <div>
+                <label className="block text-sm font-medium text-amber-800 mb-1">Номер формы согласия</label>
+                <input
+                  type="text"
+                  value={form.consent_form_number}
+                  onChange={(e) => setForm({ ...form, consent_form_number: e.target.value })}
+                  className="w-full px-3 py-2 border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
+                  placeholder="ИС-2026-001"
+                />
+              </div>
+            )}
           </div>
         </div>
 

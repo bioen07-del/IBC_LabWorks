@@ -7,6 +7,20 @@ import { QRCodeModal } from '@/components/ui/QRCodeModal'
 type InventoryItem = Database['public']['Tables']['inventory_items']['Row']
 type Location = Database['public']['Tables']['locations']['Row']
 
+interface Equipment {
+  id: number
+  equipment_name: string
+  equipment_code: string
+  location_id: number | null
+}
+
+interface StorageZone {
+  id: number
+  zone_name: string
+  zone_code: string
+  equipment_id: number
+}
+
 const categoryLabels: Record<string, string> = {
   media: 'Среды',
   serum: 'Сыворотки',
@@ -34,12 +48,19 @@ const statusColors: Record<string, string> = {
 export function InventoryPage() {
   const [items, setItems] = useState<InventoryItem[]>([])
   const [locations, setLocations] = useState<Location[]>([])
+  const [equipment, setEquipment] = useState<Equipment[]>([])
+  const [storageZones, setStorageZones] = useState<StorageZone[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string>('')
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null)
   const [qrModal, setQrModal] = useState<{ code: string; name: string } | null>(null)
+
+  // Form state with hierarchy
+  const [selectedLocationId, setSelectedLocationId] = useState<number | null>(null)
+  const [selectedEquipmentId, setSelectedEquipmentId] = useState<number | null>(null)
+  const [selectedZoneId, setSelectedZoneId] = useState<number | null>(null)
 
   const [formData, setFormData] = useState({
     item_code: '',
@@ -65,14 +86,28 @@ export function InventoryPage() {
 
   async function fetchData() {
     setLoading(true)
-    const [{ data: itemsData }, { data: locationsData }] = await Promise.all([
+    const [{ data: itemsData }, { data: locationsData }, { data: equipmentData }, { data: zonesData }] = await Promise.all([
       supabase.from('inventory_items').select('*').order('expiry_date', { ascending: true }),
-      supabase.from('locations').select('*').eq('status', 'active')
+      supabase.from('locations').select('*').eq('status', 'active'),
+      supabase.from('equipment').select('id, equipment_name, equipment_code, location_id'),
+      (supabase.from as any)('storage_zones').select('*')
     ])
     setItems(itemsData || [])
     setLocations(locationsData || [])
+    setEquipment((equipmentData as any) || [])
+    setStorageZones((zonesData as any) || [])
     setLoading(false)
   }
+
+  // Filtered equipment by selected location
+  const filteredEquipment = selectedLocationId
+    ? equipment.filter(eq => eq.location_id === selectedLocationId)
+    : []
+
+  // Filtered zones by selected equipment
+  const filteredZones = selectedEquipmentId
+    ? storageZones.filter(z => z.equipment_id === selectedEquipmentId)
+    : []
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -80,13 +115,15 @@ export function InventoryPage() {
       ...formData,
       quantity: Number(formData.quantity),
       quantity_remaining: editingItem ? Number(formData.quantity_remaining) : Number(formData.quantity),
-      storage_location_id: formData.storage_location_id || null
+      storage_location_id: selectedLocationId,
+      equipment_id: selectedEquipmentId,
+      storage_zone_id: selectedZoneId
     }
 
     if (editingItem) {
-      await supabase.from('inventory_items').update(payload).eq('id', editingItem.id)
+      await supabase.from('inventory_items').update(payload as any).eq('id', editingItem.id)
     } else {
-      await supabase.from('inventory_items').insert(payload)
+      await supabase.from('inventory_items').insert(payload as any)
     }
     setShowModal(false)
     setEditingItem(null)
@@ -112,6 +149,9 @@ export function InventoryPage() {
       storage_conditions: '',
       storage_location_id: null
     })
+    setSelectedLocationId(null)
+    setSelectedEquipmentId(null)
+    setSelectedZoneId(null)
   }
 
   function openEdit(item: InventoryItem) {
@@ -133,7 +173,27 @@ export function InventoryPage() {
       storage_conditions: item.storage_conditions || '',
       storage_location_id: item.storage_location_id
     })
+    // Restore hierarchy selection
+    setSelectedLocationId(item.storage_location_id)
+    const eqId = (item as any).equipment_id
+    const zoneId = (item as any).storage_zone_id
+    setSelectedEquipmentId(eqId || null)
+    setSelectedZoneId(zoneId || null)
     setShowModal(true)
+  }
+
+  // Get display names for storage hierarchy
+  function getStorageDisplay(item: InventoryItem) {
+    const loc = locations.find(l => l.id === item.storage_location_id)
+    const eq = equipment.find(e => e.id === (item as any).equipment_id)
+    const zone = storageZones.find(z => z.id === (item as any).storage_zone_id)
+    
+    const parts = []
+    if (loc) parts.push(loc.location_name)
+    if (eq) parts.push(eq.equipment_name)
+    if (zone) parts.push(zone.zone_name)
+    
+    return parts.length > 0 ? parts.join(' → ') : '-'
   }
 
   const filteredItems = items.filter(item => {
@@ -202,6 +262,7 @@ export function InventoryPage() {
                 <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Название</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Категория</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">LOT</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Хранение</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Остаток</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Срок годности</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">FEFO</th>
@@ -212,7 +273,6 @@ export function InventoryPage() {
             <tbody className="divide-y divide-slate-200">
               {filteredItems.map((item, idx) => {
                 const daysUntilExpiry = getDaysUntilExpiry(item.expiry_date)
-                const isFirst = idx === 0 || item.item_category !== filteredItems[idx - 1]?.item_category
                 return (
                   <tr key={item.id} className="hover:bg-slate-50">
                     <td className="px-4 py-3">
@@ -233,6 +293,7 @@ export function InventoryPage() {
                     </td>
                     <td className="px-4 py-3 text-sm">{categoryLabels[item.item_category]}</td>
                     <td className="px-4 py-3 text-sm font-mono">{item.lot_number || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-slate-600">{getStorageDisplay(item)}</td>
                     <td className="px-4 py-3 text-sm">
                       {item.quantity_remaining} / {item.quantity} {item.unit}
                     </td>
@@ -426,30 +487,81 @@ export function InventoryPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Условия хранения</label>
-                  <input
-                    type="text"
-                    value={formData.storage_conditions}
-                    onChange={(e) => setFormData({...formData, storage_conditions: e.target.value})}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                    placeholder="+2...+8°C"
-                  />
+              {/* Storage Hierarchy: Location -> Equipment -> Zone */}
+              <div className="p-4 bg-slate-50 rounded-lg space-y-4">
+                <h3 className="font-medium text-slate-700">Место хранения</h3>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Помещение</label>
+                    <select
+                      value={selectedLocationId || ''}
+                      onChange={(e) => {
+                        const val = e.target.value ? parseInt(e.target.value) : null
+                        setSelectedLocationId(val)
+                        setSelectedEquipmentId(null)
+                        setSelectedZoneId(null)
+                      }}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                    >
+                      <option value="">-- Выберите --</option>
+                      {locations.map(loc => (
+                        <option key={loc.id} value={loc.id}>
+                          {loc.location_name} ({loc.location_code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Оборудование</label>
+                    <select
+                      value={selectedEquipmentId || ''}
+                      onChange={(e) => {
+                        const val = e.target.value ? parseInt(e.target.value) : null
+                        setSelectedEquipmentId(val)
+                        setSelectedZoneId(null)
+                      }}
+                      disabled={!selectedLocationId}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg disabled:bg-slate-100"
+                    >
+                      <option value="">-- Выберите --</option>
+                      {filteredEquipment.map(eq => (
+                        <option key={eq.id} value={eq.id}>
+                          {eq.equipment_name} ({eq.equipment_code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Зона / Полка</label>
+                    <select
+                      value={selectedZoneId || ''}
+                      onChange={(e) => {
+                        const val = e.target.value ? parseInt(e.target.value) : null
+                        setSelectedZoneId(val)
+                      }}
+                      disabled={!selectedEquipmentId || filteredZones.length === 0}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg disabled:bg-slate-100"
+                    >
+                      <option value="">-- Выберите --</option>
+                      {filteredZones.map(z => (
+                        <option key={z.id} value={z.id}>
+                          {z.zone_name} ({z.zone_code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Локация хранения</label>
-                  <select
-                    value={formData.storage_location_id || ''}
-                    onChange={(e) => setFormData({...formData, storage_location_id: e.target.value ? parseInt(e.target.value) : null})}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-                  >
-                    <option value="">Не указана</option>
-                    {locations.map(loc => (
-                      <option key={loc.id} value={loc.id}>{loc.location_name} ({loc.location_code})</option>
-                    ))}
-                  </select>
-                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Условия хранения</label>
+                <input
+                  type="text"
+                  value={formData.storage_conditions}
+                  onChange={(e) => setFormData({...formData, storage_conditions: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                  placeholder="+2...+8°C"
+                />
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t">

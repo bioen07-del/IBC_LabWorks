@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { getCurrentUserId } from '@/hooks/useAuth';
 import { FlaskConical, Plus, Search, X, CheckCircle, XCircle, Clock, FileText } from 'lucide-react';
 
 interface QCTest {
@@ -80,7 +81,7 @@ export default function QCTests() {
       test_type: formData.test_type,
       test_method: formData.test_method,
       culture_id: formData.culture_id ? parseInt(formData.culture_id) : null,
-      requested_by_user_id: 1,
+      requested_by_user_id: getCurrentUserId(),
       result_status: 'pending'
     });
     setShowCreateModal(false);

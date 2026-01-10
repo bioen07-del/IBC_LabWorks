@@ -1,5 +1,26 @@
 # BMCP Platform - Changelog
 
+## [0.2.0] - 2026-01-10
+
+### Добавлено
+- `useAuth` hook для динамического получения user_id
+- `getCurrentUserId()` функция для insert/update операций
+- Логирование истории контейнеров (`logContainerHistory`) при операциях
+- Поля банкирования: криосреда, скорость заморозки, температура хранения
+- Поля размораживания: метод, длительность, жизнеспособность после оттаивания
+
+### Исправлено
+- **КРИТИЧНО**: Foreign key constraint - изменён default user_id с 1 на 2
+- FORM-001: Донация - collection_site, consent_form_number, created_by
+- FORM-003: Культура - culture_type, isolation_date, at_risk
+- FORM-008: CAPA в Deviation - root_cause, corrective_action, preventive_action
+- DATA-001: Динамический *_by_user_id во всех формах
+- DATA-002: Обновление container.status после операций
+- DATA-003: Обновление container.volume_ml при использовании
+- DATA-004: Запись container_history при операциях
+
+---
+
 ## [0.1.0] - 2026-01-09
 
 ### Добавлено

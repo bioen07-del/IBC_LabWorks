@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Plus, Search, FileText, Calendar, CheckCircle, XCircle, ExternalLink, X } from 'lucide-react'
+import { Plus, Search, FileText, Calendar, CheckCircle, XCircle, ExternalLink, X, Pencil, Trash2 } from 'lucide-react'
 
 interface SOP {
   id: number;
@@ -19,6 +19,7 @@ export function SOPsPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
+  const [editingId, setEditingId] = useState<number | null>(null)
   const [formData, setFormData] = useState({
     sop_code: '',
     title: '',
@@ -41,8 +42,8 @@ export function SOPsPage() {
 
   const generateCode = () => `SOP-${Date.now().toString(36).toUpperCase()}`
 
-  const handleCreate = async () => {
-    await supabase.from('sops').insert({
+  const handleSave = async () => {
+    const payload = {
       sop_code: formData.sop_code || generateCode(),
       title: formData.title,
       description: formData.description || null,
@@ -51,10 +52,40 @@ export function SOPsPage() {
       review_date: formData.review_date || null,
       document_url: formData.document_url || null,
       is_active: true
-    })
-    setShowModal(false)
-    setFormData({ sop_code: '', title: '', description: '', version: '1.0', effective_date: '', review_date: '', document_url: '' })
+    }
+    if (editingId) {
+      await supabase.from('sops').update(payload).eq('id', editingId)
+    } else {
+      await supabase.from('sops').insert(payload)
+    }
+    closeModal()
     loadSOPs()
+  }
+
+  const handleEdit = (item: SOP) => {
+    setEditingId(item.id)
+    setFormData({
+      sop_code: item.sop_code,
+      title: item.title,
+      description: item.description || '',
+      version: item.version,
+      effective_date: item.effective_date || '',
+      review_date: item.review_date || '',
+      document_url: item.document_url || ''
+    })
+    setShowModal(true)
+  }
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('Удалить СОП?')) return
+    await supabase.from('sops').delete().eq('id', id)
+    loadSOPs()
+  }
+
+  const closeModal = () => {
+    setShowModal(false)
+    setEditingId(null)
+    setFormData({ sop_code: '', title: '', description: '', version: '1.0', effective_date: '', review_date: '', document_url: '' })
   }
 
   const filteredSOPs = sops.filter(sop =>
@@ -145,6 +176,10 @@ export function SOPsPage() {
                       Открыть
                     </a>
                   )}
+                  <div className="flex items-center gap-1 ml-2">
+                    <button onClick={() => handleEdit(sop)} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded"><Pencil className="h-4 w-4" /></button>
+                    <button onClick={() => handleDelete(sop.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 className="h-4 w-4" /></button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -157,8 +192,8 @@ export function SOPsPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">Новый СОП</h2>
-              <button onClick={() => setShowModal(false)}><X className="w-5 h-5" /></button>
+              <h2 className="text-xl font-bold">{editingId ? 'Редактировать' : 'Новый СОП'}</h2>
+              <button onClick={closeModal}><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-4">
               <div>
@@ -195,8 +230,8 @@ export function SOPsPage() {
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              <button onClick={() => setShowModal(false)} className="px-4 py-2 border rounded hover:bg-gray-50">Отмена</button>
-              <button onClick={handleCreate} disabled={!formData.title} className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50">Создать</button>
+              <button onClick={closeModal} className="px-4 py-2 border rounded hover:bg-gray-50">Отмена</button>
+              <button onClick={handleSave} disabled={!formData.title} className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50">{editingId ? 'Сохранить' : 'Создать'}</button>
             </div>
           </div>
         </div>

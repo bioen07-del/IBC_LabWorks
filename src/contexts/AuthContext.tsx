@@ -1,10 +1,17 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { User, Session } from '@supabase/supabase-js'
+
+interface AppUser {
+  id: number
+  username: string
+  email: string
+  full_name: string
+  role: 'admin' | 'qp' | 'qc' | 'operator' | 'viewer'
+  is_active: boolean
+}
 
 interface AuthContextType {
-  user: User | null
-  session: Session | null
+  user: AppUser | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>
   signOut: () => Promise<void>
@@ -12,39 +19,70 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+const STORAGE_KEY = 'bmcp_user'
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [session, setSession] = useState<Session | null>(null)
+  const [user, setUser] = useState<AppUser | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Получаем текущую сессию
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      setLoading(false)
-    })
-
-    // Слушаем изменения сессии
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-    })
-
-    return () => subscription.unsubscribe()
+    // Восстанавливаем сессию из localStorage
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (stored) {
+      try {
+        setUser(JSON.parse(stored))
+      } catch {
+        localStorage.removeItem(STORAGE_KEY)
+      }
+    }
+    setLoading(false)
   }, [])
 
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    return { error: error as Error | null }
+  const signIn = async (email: string, _password: string) => {
+    try {
+      // Для демо-режима проверяем только email в таблице users
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .eq('is_active', true)
+        .single()
+
+      if (error || !data) {
+        return { error: new Error('Пользователь не найден или неактивен') }
+      }
+
+      const appUser: AppUser = {
+        id: data.id,
+        username: data.username,
+        email: data.email,
+        full_name: data.full_name,
+        role: data.role,
+        is_active: data.is_active
+      }
+
+      setUser(appUser)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appUser))
+
+      // Обновляем last_login
+      await supabase
+        .from('users')
+        .update({ last_login_at: new Date().toISOString() })
+        .eq('id', data.id)
+
+      return { error: null }
+    } catch (err) {
+      return { error: err as Error }
+    }
   }
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    setUser(null)
+    localStorage.removeItem(STORAGE_KEY)
   }
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   )

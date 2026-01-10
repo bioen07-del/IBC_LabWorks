@@ -36,7 +36,6 @@ const navigation = [
   { name: 'QC Тесты', href: '/qc-tests', icon: Microscope },
   { name: 'Задачи', href: '/tasks', icon: ClipboardList },
   { name: 'Выдачи', href: '/releases', icon: Package },
-  { name: 'Прослеживаемость', href: '/traceability', icon: GitBranch },
   { name: 'Отчёты', href: '/reports', icon: FileSpreadsheet },
   { name: 'Этикетки', href: '/labels', icon: Tag },
 ]
@@ -154,7 +153,7 @@ export function Sidebar() {
           Выйти
         </button>
         <div className="mt-3 text-center text-xs text-slate-500">
-          v0.0.1
+          v0.1.1
         </div>
       </div>
     </aside>

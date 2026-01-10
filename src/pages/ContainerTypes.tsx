@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Plus, Search, FlaskConical, Beaker, Snowflake, Box, CheckCircle, XCircle, X } from 'lucide-react'
+import { Plus, Search, FlaskConical, Beaker, Snowflake, Box, CheckCircle, XCircle, X, Pencil, Trash2 } from 'lucide-react'
 
 interface ContainerType {
   id: number;
@@ -44,6 +44,7 @@ export function ContainerTypesPage() {
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const [showModal, setShowModal] = useState(false)
+  const [editingId, setEditingId] = useState<number | null>(null)
   const [formData, setFormData] = useState({
     type_code: '',
     type_name: '',
@@ -66,8 +67,8 @@ export function ContainerTypesPage() {
 
   const generateCode = () => `CT-${Date.now().toString(36).toUpperCase()}`
 
-  const handleCreate = async () => {
-    await supabase.from('container_types').insert({
+  const handleSave = async () => {
+    const payload = {
       type_code: formData.type_code || generateCode(),
       type_name: formData.type_name,
       category: formData.category as any,
@@ -76,10 +77,40 @@ export function ContainerTypesPage() {
       volume_ml: formData.volume_ml ? parseFloat(formData.volume_ml) : null,
       surface_area_cm2: formData.surface_area_cm2 ? parseFloat(formData.surface_area_cm2) : null,
       is_active: true
-    })
-    setShowModal(false)
-    setFormData({ type_code: '', type_name: '', category: 'flask', manufacturer: '', catalog_number: '', volume_ml: '', surface_area_cm2: '' })
+    }
+    if (editingId) {
+      await supabase.from('container_types').update(payload).eq('id', editingId)
+    } else {
+      await supabase.from('container_types').insert(payload)
+    }
+    closeModal()
     loadTypes()
+  }
+
+  const handleEdit = (item: ContainerType) => {
+    setEditingId(item.id)
+    setFormData({
+      type_code: item.type_code,
+      type_name: item.type_name,
+      category: item.category,
+      manufacturer: item.manufacturer || '',
+      catalog_number: item.catalog_number || '',
+      volume_ml: item.volume_ml?.toString() || '',
+      surface_area_cm2: item.surface_area_cm2?.toString() || ''
+    })
+    setShowModal(true)
+  }
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('Удалить тип контейнера?')) return
+    await supabase.from('container_types').delete().eq('id', id)
+    loadTypes()
+  }
+
+  const closeModal = () => {
+    setShowModal(false)
+    setEditingId(null)
+    setFormData({ type_code: '', type_name: '', category: 'flask', manufacturer: '', catalog_number: '', volume_ml: '', surface_area_cm2: '' })
   }
 
   const filteredTypes = types.filter(t => {
@@ -150,6 +181,10 @@ export function ContainerTypesPage() {
                 </div>
 
                 {type.catalog_number && <div className="mt-2 text-xs text-slate-400">Кат. №: {type.catalog_number}</div>}
+                <div className="flex justify-end gap-1 mt-2">
+                  <button onClick={() => handleEdit(type)} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded"><Pencil className="h-4 w-4" /></button>
+                  <button onClick={() => handleDelete(type.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 className="h-4 w-4" /></button>
+                </div>
               </div>
             ))}
             {filteredTypes.length === 0 && <div className="col-span-3 text-center py-8 text-slate-500">Типы не найдены</div>}
@@ -162,8 +197,8 @@ export function ContainerTypesPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">Новый тип контейнера</h2>
-              <button onClick={() => setShowModal(false)}><X className="w-5 h-5" /></button>
+              <h2 className="text-xl font-bold">{editingId ? 'Редактировать' : 'Новый тип контейнера'}</h2>
+              <button onClick={closeModal}><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-4">
               <div>
@@ -202,8 +237,8 @@ export function ContainerTypesPage() {
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              <button onClick={() => setShowModal(false)} className="px-4 py-2 border rounded hover:bg-gray-50">Отмена</button>
-              <button onClick={handleCreate} disabled={!formData.type_name} className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50">Создать</button>
+              <button onClick={closeModal} className="px-4 py-2 border rounded hover:bg-gray-50">Отмена</button>
+              <button onClick={handleSave} disabled={!formData.type_name} className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50">{editingId ? 'Сохранить' : 'Создать'}</button>
             </div>
           </div>
         </div>

@@ -61,6 +61,75 @@ export type Database = {
           },
         ]
       }
+      cca_rules: {
+        Row: {
+          block_process_on_fail: boolean | null
+          condition: Json
+          created_at: string | null
+          created_by_user_id: number | null
+          effective_from: string
+          effective_to: string | null
+          id: number
+          is_active: boolean | null
+          parameter_name: string
+          rule_code: string
+          rule_type: string
+          scope: string | null
+          severity: string | null
+          sop_id: number | null
+          step_number: number | null
+        }
+        Insert: {
+          block_process_on_fail?: boolean | null
+          condition: Json
+          created_at?: string | null
+          created_by_user_id?: number | null
+          effective_from?: string
+          effective_to?: string | null
+          id?: number
+          is_active?: boolean | null
+          parameter_name: string
+          rule_code: string
+          rule_type: string
+          scope?: string | null
+          severity?: string | null
+          sop_id?: number | null
+          step_number?: number | null
+        }
+        Update: {
+          block_process_on_fail?: boolean | null
+          condition?: Json
+          created_at?: string | null
+          created_by_user_id?: number | null
+          effective_from?: string
+          effective_to?: string | null
+          id?: number
+          is_active?: boolean | null
+          parameter_name?: string
+          rule_code?: string
+          rule_type?: string
+          scope?: string | null
+          severity?: string | null
+          sop_id?: number | null
+          step_number?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cca_rules_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cca_rules_sop_id_fkey"
+            columns: ["sop_id"]
+            isOneToOne: false
+            referencedRelation: "sops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       combined_media_batch_components: {
         Row: {
           combined_media_batch_id: number
@@ -176,6 +245,90 @@ export type Database = {
           },
         ]
       }
+      container_history: {
+        Row: {
+          container_id: number
+          details: Json | null
+          id: number
+          notes: string | null
+          operation: string
+          performed_at: string | null
+          performed_by_user_id: number | null
+        }
+        Insert: {
+          container_id: number
+          details?: Json | null
+          id?: number
+          notes?: string | null
+          operation: string
+          performed_at?: string | null
+          performed_by_user_id?: number | null
+        }
+        Update: {
+          container_id?: number
+          details?: Json | null
+          id?: number
+          notes?: string | null
+          operation?: string
+          performed_at?: string | null
+          performed_by_user_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "container_history_container_id_fkey"
+            columns: ["container_id"]
+            isOneToOne: false
+            referencedRelation: "containers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "container_history_performed_by_user_id_fkey"
+            columns: ["performed_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      container_media_usage: {
+        Row: {
+          container_id: number
+          id: number
+          media_batch_id: number
+          used_at: string
+          volume_ml: number | null
+        }
+        Insert: {
+          container_id: number
+          id?: number
+          media_batch_id: number
+          used_at?: string
+          volume_ml?: number | null
+        }
+        Update: {
+          container_id?: number
+          id?: number
+          media_batch_id?: number
+          used_at?: string
+          volume_ml?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "container_media_usage_container_id_fkey"
+            columns: ["container_id"]
+            isOneToOne: false
+            referencedRelation: "containers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "container_media_usage_media_batch_id_fkey"
+            columns: ["media_batch_id"]
+            isOneToOne: false
+            referencedRelation: "combined_media_batches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       container_types: {
         Row: {
           catalog_number: string | null
@@ -221,22 +374,30 @@ export type Database = {
           container_code: string
           container_type_id: number
           created_at: string
+          created_by_user_id: number | null
+          cryopreservation_media: string | null
           culture_id: number
           disposed_at: string | null
+          freezing_rate: string | null
           frozen_at: string | null
           hold_reason: string | null
           hold_set_at: string | null
           hold_set_by_user_id: number | null
           id: number
           location_id: number | null
+          parent_container_id: number | null
           passage_number: number
           qr_code_data: Json | null
           quality_hold: Database["public"]["Enums"]["container_quality_hold"]
           split_index: number
           status: Database["public"]["Enums"]["container_status"]
+          storage_temperature: string | null
+          thaw_duration_minutes: number | null
+          thaw_method: string | null
           thawed_at: string | null
           updated_at: string
           viability_percent: number | null
+          viability_post_thaw: number | null
           volume_ml: number | null
         }
         Insert: {
@@ -244,22 +405,30 @@ export type Database = {
           container_code: string
           container_type_id: number
           created_at?: string
+          created_by_user_id?: number | null
+          cryopreservation_media?: string | null
           culture_id: number
           disposed_at?: string | null
+          freezing_rate?: string | null
           frozen_at?: string | null
           hold_reason?: string | null
           hold_set_at?: string | null
           hold_set_by_user_id?: number | null
           id?: number
           location_id?: number | null
+          parent_container_id?: number | null
           passage_number?: number
           qr_code_data?: Json | null
           quality_hold?: Database["public"]["Enums"]["container_quality_hold"]
           split_index?: number
           status?: Database["public"]["Enums"]["container_status"]
+          storage_temperature?: string | null
+          thaw_duration_minutes?: number | null
+          thaw_method?: string | null
           thawed_at?: string | null
           updated_at?: string
           viability_percent?: number | null
+          viability_post_thaw?: number | null
           volume_ml?: number | null
         }
         Update: {
@@ -267,22 +436,30 @@ export type Database = {
           container_code?: string
           container_type_id?: number
           created_at?: string
+          created_by_user_id?: number | null
+          cryopreservation_media?: string | null
           culture_id?: number
           disposed_at?: string | null
+          freezing_rate?: string | null
           frozen_at?: string | null
           hold_reason?: string | null
           hold_set_at?: string | null
           hold_set_by_user_id?: number | null
           id?: number
           location_id?: number | null
+          parent_container_id?: number | null
           passage_number?: number
           qr_code_data?: Json | null
           quality_hold?: Database["public"]["Enums"]["container_quality_hold"]
           split_index?: number
           status?: Database["public"]["Enums"]["container_status"]
+          storage_temperature?: string | null
+          thaw_duration_minutes?: number | null
+          thaw_method?: string | null
           thawed_at?: string | null
           updated_at?: string
           viability_percent?: number | null
+          viability_post_thaw?: number | null
           volume_ml?: number | null
         }
         Relationships: [
@@ -291,6 +468,13 @@ export type Database = {
             columns: ["container_type_id"]
             isOneToOne: false
             referencedRelation: "container_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "containers_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
           {
@@ -312,6 +496,13 @@ export type Database = {
             columns: ["location_id"]
             isOneToOne: false
             referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "containers_parent_container_id_fkey"
+            columns: ["parent_container_id"]
+            isOneToOne: false
+            referencedRelation: "containers"
             referencedColumns: ["id"]
           },
         ]
@@ -359,12 +550,19 @@ export type Database = {
       }
       cultures: {
         Row: {
+          at_risk: boolean | null
+          at_risk_reason: string | null
+          at_risk_set_at: string | null
+          at_risk_set_by_user_id: number | null
           cell_type: string
           created_at: string
           culture_code: string
+          culture_type: Database["public"]["Enums"]["culture_type"] | null
           current_passage: number
           donation_id: number
           id: number
+          isolated_by_user_id: number | null
+          isolation_date: string | null
           media_batch_used_id: number | null
           order_id: number | null
           risk_flag: Database["public"]["Enums"]["culture_risk_flag"]
@@ -376,12 +574,19 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          at_risk?: boolean | null
+          at_risk_reason?: string | null
+          at_risk_set_at?: string | null
+          at_risk_set_by_user_id?: number | null
           cell_type: string
           created_at?: string
           culture_code: string
+          culture_type?: Database["public"]["Enums"]["culture_type"] | null
           current_passage?: number
           donation_id: number
           id?: number
+          isolated_by_user_id?: number | null
+          isolation_date?: string | null
           media_batch_used_id?: number | null
           order_id?: number | null
           risk_flag?: Database["public"]["Enums"]["culture_risk_flag"]
@@ -393,12 +598,19 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          at_risk?: boolean | null
+          at_risk_reason?: string | null
+          at_risk_set_at?: string | null
+          at_risk_set_by_user_id?: number | null
           cell_type?: string
           created_at?: string
           culture_code?: string
+          culture_type?: Database["public"]["Enums"]["culture_type"] | null
           current_passage?: number
           donation_id?: number
           id?: number
+          isolated_by_user_id?: number | null
+          isolation_date?: string | null
           media_batch_used_id?: number | null
           order_id?: number | null
           risk_flag?: Database["public"]["Enums"]["culture_risk_flag"]
@@ -411,10 +623,24 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "cultures_at_risk_set_by_user_id_fkey"
+            columns: ["at_risk_set_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "cultures_donation_id_fkey"
             columns: ["donation_id"]
             isOneToOne: false
             referencedRelation: "donations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cultures_isolated_by_user_id_fkey"
+            columns: ["isolated_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
           {
@@ -455,6 +681,7 @@ export type Database = {
           qp_reviewed_at: string | null
           qp_reviewed_by_user_id: number | null
           resolved_at: string | null
+          resolved_by_user_id: number | null
           root_cause: string | null
           severity: Database["public"]["Enums"]["deviation_severity"]
           status: Database["public"]["Enums"]["deviation_status"]
@@ -480,6 +707,7 @@ export type Database = {
           qp_reviewed_at?: string | null
           qp_reviewed_by_user_id?: number | null
           resolved_at?: string | null
+          resolved_by_user_id?: number | null
           root_cause?: string | null
           severity?: Database["public"]["Enums"]["deviation_severity"]
           status?: Database["public"]["Enums"]["deviation_status"]
@@ -505,6 +733,7 @@ export type Database = {
           qp_reviewed_at?: string | null
           qp_reviewed_by_user_id?: number | null
           resolved_at?: string | null
+          resolved_by_user_id?: number | null
           root_cause?: string | null
           severity?: Database["public"]["Enums"]["deviation_severity"]
           status?: Database["public"]["Enums"]["deviation_status"]
@@ -552,16 +781,71 @@ export type Database = {
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "deviations_resolved_by_user_id_fkey"
+            columns: ["resolved_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      donation_qp_decisions: {
+        Row: {
+          conditions: string | null
+          decided_at: string
+          decided_by_user_id: number
+          decision: string
+          donation_id: number
+          id: number
+          reason: string
+        }
+        Insert: {
+          conditions?: string | null
+          decided_at?: string
+          decided_by_user_id: number
+          decision: string
+          donation_id: number
+          id?: number
+          reason: string
+        }
+        Update: {
+          conditions?: string | null
+          decided_at?: string
+          decided_by_user_id?: number
+          decision?: string
+          donation_id?: number
+          id?: number
+          reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "donation_qp_decisions_decided_by_user_id_fkey"
+            columns: ["decided_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "donation_qp_decisions_donation_id_fkey"
+            columns: ["donation_id"]
+            isOneToOne: false
+            referencedRelation: "donations"
+            referencedColumns: ["id"]
+          },
         ]
       }
       donations: {
         Row: {
           cell_type: string | null
           collection_method: string | null
+          collection_site: string | null
           consent_confirmed: boolean
+          consent_form_number: string | null
           contract_date: string | null
           contract_number: string | null
           created_at: string
+          created_by_user_id: number | null
           donation_code: string
           donation_date: string
           donor_id: number
@@ -582,10 +866,13 @@ export type Database = {
         Insert: {
           cell_type?: string | null
           collection_method?: string | null
+          collection_site?: string | null
           consent_confirmed?: boolean
+          consent_form_number?: string | null
           contract_date?: string | null
           contract_number?: string | null
           created_at?: string
+          created_by_user_id?: number | null
           donation_code: string
           donation_date: string
           donor_id: number
@@ -606,10 +893,13 @@ export type Database = {
         Update: {
           cell_type?: string | null
           collection_method?: string | null
+          collection_site?: string | null
           consent_confirmed?: boolean
+          consent_form_number?: string | null
           contract_date?: string | null
           contract_number?: string | null
           created_at?: string
+          created_by_user_id?: number | null
           donation_code?: string
           donation_date?: string
           donor_id?: number
@@ -628,6 +918,13 @@ export type Database = {
           volume_ml?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "donations_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "donations_donor_id_fkey"
             columns: ["donor_id"]
@@ -712,6 +1009,9 @@ export type Database = {
       }
       equipment: {
         Row: {
+          barcode: string | null
+          calibration_certificate: string | null
+          calibration_due_date: string | null
           calibration_frequency_days: number | null
           calibration_valid_until: string | null
           created_at: string
@@ -730,6 +1030,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          barcode?: string | null
+          calibration_certificate?: string | null
+          calibration_due_date?: string | null
           calibration_frequency_days?: number | null
           calibration_valid_until?: string | null
           created_at?: string
@@ -748,6 +1051,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          barcode?: string | null
+          calibration_certificate?: string | null
+          calibration_due_date?: string | null
           calibration_frequency_days?: number | null
           calibration_valid_until?: string | null
           created_at?: string
@@ -1026,6 +1332,7 @@ export type Database = {
           catalog_number: string | null
           certificate_of_analysis_url: string | null
           created_at: string
+          equipment_id: number | null
           expiry_date: string
           id: number
           item_category: Database["public"]["Enums"]["inventory_category"]
@@ -1040,6 +1347,7 @@ export type Database = {
           status: Database["public"]["Enums"]["inventory_status"]
           storage_conditions: string | null
           storage_location_id: number | null
+          storage_zone_id: number | null
           supplier: string | null
           unit: string
           updated_at: string
@@ -1049,6 +1357,7 @@ export type Database = {
           catalog_number?: string | null
           certificate_of_analysis_url?: string | null
           created_at?: string
+          equipment_id?: number | null
           expiry_date: string
           id?: number
           item_category: Database["public"]["Enums"]["inventory_category"]
@@ -1063,6 +1372,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["inventory_status"]
           storage_conditions?: string | null
           storage_location_id?: number | null
+          storage_zone_id?: number | null
           supplier?: string | null
           unit: string
           updated_at?: string
@@ -1072,6 +1382,7 @@ export type Database = {
           catalog_number?: string | null
           certificate_of_analysis_url?: string | null
           created_at?: string
+          equipment_id?: number | null
           expiry_date?: string
           id?: number
           item_category?: Database["public"]["Enums"]["inventory_category"]
@@ -1086,16 +1397,31 @@ export type Database = {
           status?: Database["public"]["Enums"]["inventory_status"]
           storage_conditions?: string | null
           storage_location_id?: number | null
+          storage_zone_id?: number | null
           supplier?: string | null
           unit?: string
           updated_at?: string
         }
         Relationships: [
           {
+            foreignKeyName: "inventory_items_equipment_id_fkey"
+            columns: ["equipment_id"]
+            isOneToOne: false
+            referencedRelation: "equipment"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "inventory_items_storage_location_id_fkey"
             columns: ["storage_location_id"]
             isOneToOne: false
             referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_items_storage_zone_id_fkey"
+            columns: ["storage_zone_id"]
+            isOneToOne: false
+            referencedRelation: "storage_zones"
             referencedColumns: ["id"]
           },
         ]
@@ -1174,6 +1500,7 @@ export type Database = {
       locations: {
         Row: {
           capacity: number | null
+          clean_room_class: string | null
           created_at: string
           current_occupancy: number
           id: number
@@ -1189,6 +1516,7 @@ export type Database = {
         }
         Insert: {
           capacity?: number | null
+          clean_room_class?: string | null
           created_at?: string
           current_occupancy?: number
           id?: number
@@ -1204,6 +1532,7 @@ export type Database = {
         }
         Update: {
           capacity?: number | null
+          clean_room_class?: string | null
           created_at?: string
           current_occupancy?: number
           id?: number
@@ -1362,6 +1691,56 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      notifications: {
+        Row: {
+          created_at: string | null
+          id: number
+          message: string | null
+          notification_type: string
+          priority: string | null
+          read: boolean | null
+          read_at: string | null
+          related_entity_id: number | null
+          related_entity_type: string | null
+          title: string
+          user_id: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: number
+          message?: string | null
+          notification_type: string
+          priority?: string | null
+          read?: boolean | null
+          read_at?: string | null
+          related_entity_id?: number | null
+          related_entity_type?: string | null
+          title: string
+          user_id?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: number
+          message?: string | null
+          notification_type?: string
+          priority?: string | null
+          read?: boolean | null
+          read_at?: string | null
+          related_entity_id?: number | null
+          related_entity_type?: string | null
+          title?: string
+          user_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       orders: {
         Row: {
@@ -1685,6 +2064,60 @@ export type Database = {
           },
         ]
       }
+      serology_tests: {
+        Row: {
+          created_at: string | null
+          donation_id: number
+          id: number
+          lab_number: string | null
+          performed_by_user_id: number | null
+          protocol_file_url: string | null
+          reference_values: string | null
+          result: string
+          test_date: string
+          test_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          donation_id: number
+          id?: number
+          lab_number?: string | null
+          performed_by_user_id?: number | null
+          protocol_file_url?: string | null
+          reference_values?: string | null
+          result: string
+          test_date: string
+          test_type: string
+        }
+        Update: {
+          created_at?: string | null
+          donation_id?: number
+          id?: number
+          lab_number?: string | null
+          performed_by_user_id?: number | null
+          protocol_file_url?: string | null
+          reference_values?: string | null
+          result?: string
+          test_date?: string
+          test_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "serology_tests_donation_id_fkey"
+            columns: ["donation_id"]
+            isOneToOne: false
+            referencedRelation: "donations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "serology_tests_performed_by_user_id_fkey"
+            columns: ["performed_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sessions: {
         Row: {
           completed_at: string | null
@@ -1742,6 +2175,57 @@ export type Database = {
           },
         ]
       }
+      sop_versions: {
+        Row: {
+          approved_at: string | null
+          approved_by_user_id: number | null
+          content_snapshot: Json
+          created_at: string | null
+          effective_from: string
+          effective_to: string | null
+          id: number
+          sop_id: number | null
+          version: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by_user_id?: number | null
+          content_snapshot: Json
+          created_at?: string | null
+          effective_from: string
+          effective_to?: string | null
+          id?: number
+          sop_id?: number | null
+          version: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by_user_id?: number | null
+          content_snapshot?: Json
+          created_at?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          id?: number
+          sop_id?: number | null
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sop_versions_approved_by_user_id_fkey"
+            columns: ["approved_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sop_versions_sop_id_fkey"
+            columns: ["sop_id"]
+            isOneToOne: false
+            referencedRelation: "sops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sops: {
         Row: {
           created_at: string
@@ -1791,6 +2275,62 @@ export type Database = {
             columns: ["created_by_user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      storage_zones: {
+        Row: {
+          capacity: number
+          created_at: string | null
+          current_occupancy: number
+          equipment_id: number | null
+          id: number
+          position: string | null
+          status: string
+          temperature_max: number | null
+          temperature_min: number | null
+          updated_at: string | null
+          zone_code: string
+          zone_name: string
+          zone_type: string
+        }
+        Insert: {
+          capacity?: number
+          created_at?: string | null
+          current_occupancy?: number
+          equipment_id?: number | null
+          id?: number
+          position?: string | null
+          status?: string
+          temperature_max?: number | null
+          temperature_min?: number | null
+          updated_at?: string | null
+          zone_code: string
+          zone_name: string
+          zone_type?: string
+        }
+        Update: {
+          capacity?: number
+          created_at?: string | null
+          current_occupancy?: number
+          equipment_id?: number | null
+          id?: number
+          position?: string | null
+          status?: string
+          temperature_max?: number | null
+          temperature_min?: number | null
+          updated_at?: string | null
+          zone_code?: string
+          zone_name?: string
+          zone_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "storage_zones_equipment_id_fkey"
+            columns: ["equipment_id"]
+            isOneToOne: false
+            referencedRelation: "equipment"
             referencedColumns: ["id"]
           },
         ]
@@ -2065,6 +2605,7 @@ export type Database = {
       container_status: "active" | "frozen" | "thawed" | "disposed" | "blocked"
       culture_risk_flag: "none" | "at_risk" | "critical"
       culture_status: "active" | "frozen" | "hold" | "contaminated" | "disposed"
+      culture_type: "primary" | "passage" | "mcb" | "wcb"
       deviation_severity: "minor" | "major" | "critical"
       deviation_status: "open" | "under_review" | "resolved" | "escalated"
       deviation_type:
@@ -2311,6 +2852,7 @@ export const Constants = {
       container_status: ["active", "frozen", "thawed", "disposed", "blocked"],
       culture_risk_flag: ["none", "at_risk", "critical"],
       culture_status: ["active", "frozen", "hold", "contaminated", "disposed"],
+      culture_type: ["primary", "passage", "mcb", "wcb"],
       deviation_severity: ["minor", "major", "critical"],
       deviation_status: ["open", "under_review", "resolved", "escalated"],
       deviation_type: [

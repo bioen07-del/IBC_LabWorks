@@ -34,6 +34,7 @@ export function DonorDetail() {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState<Partial<Donor>>({})
   const [approving, setApproving] = useState<number | null>(null)
+  const [changingStatus, setChangingStatus] = useState(false)
 
   useEffect(() => {
     if (id) loadDonor()
@@ -93,6 +94,25 @@ export function DonorDetail() {
       console.error('Error saving donor:', error)
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleChangeDonorStatus(isActive: boolean) {
+    if (!id) return
+    setChangingStatus(true)
+    try {
+      const { error } = await supabase
+        .from('donors')
+        .update({ is_active: isActive })
+        .eq('id', parseInt(id!))
+
+      if (error) throw error
+      setDonor({ ...donor!, is_active: isActive })
+    } catch (error) {
+      console.error('Error changing donor status:', error)
+      alert('Ошибка при изменении статуса')
+    } finally {
+      setChangingStatus(false)
     }
   }
 
@@ -215,6 +235,46 @@ export function DonorDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column - Info Cards */}
         <div className="space-y-6">
+          {/* Donor Status */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <h2 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-slate-400" />
+              Статус донора
+            </h2>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-500">Текущий статус:</span>
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  donor.is_active
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : 'bg-slate-100 text-slate-700'
+                }`}>
+                  {donor.is_active ? 'Активен' : 'Неактивен'}
+                </span>
+              </div>
+              {(user?.role === 'qp' || user?.role === 'admin') && !donor.is_active && (
+                <button
+                  onClick={() => handleChangeDonorStatus(true)}
+                  disabled={changingStatus}
+                  className="w-full px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <ShieldCheck className="h-5 w-5" />
+                  {changingStatus ? 'Обработка...' : 'Активировать донора (QP)'}
+                </button>
+              )}
+              {(user?.role === 'qp' || user?.role === 'admin') && donor.is_active && (
+                <button
+                  onClick={() => handleChangeDonorStatus(false)}
+                  disabled={changingStatus}
+                  className="w-full px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <ShieldX className="h-5 w-5" />
+                  {changingStatus ? 'Обработка...' : 'Приостановить донора'}
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Basic Info */}
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
             <h2 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">

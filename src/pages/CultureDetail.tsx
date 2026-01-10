@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase, Tables } from '@/lib/supabase'
+import { getCurrentUserId } from '@/hooks/useAuth'
 import { 
   ArrowLeft, 
   FlaskConical, 
@@ -23,7 +24,9 @@ import {
   X,
   Check,
   Link2,
-  ArrowRight
+  ArrowRight,
+  TrendingUp,
+  BarChart3
 } from 'lucide-react'
 
 type Culture = Tables<'cultures'> & {
@@ -33,7 +36,8 @@ type Culture = Tables<'cultures'> & {
     donation_date: string
     donors: { id: number; donor_code: string; full_name: string | null } | null
   } | null
-  combined_media_batches: { batch_code: string; media_recipes: { recipe_name: string } | null } | null
+  combined_media_batches: { batch_code: string; expiry_date: string | null; media_recipes: { recipe_name: string } | null } | null
+  orders: { id: number; order_code: string; client_name: string } | null
 }
 
 type Container = Tables<'containers'> & {
@@ -80,6 +84,12 @@ export function CultureDetail() {
   const [showThawModal, setShowThawModal] = useState(false)
   const [bankType, setBankType] = useState<'mcb' | 'wcb'>('wcb')
   const [vialCount, setVialCount] = useState(10)
+  const [cryoMedia, setCryoMedia] = useState('DMSO 10%')
+  const [freezingRate, setFreezingRate] = useState('-1°C/min')
+  const [storageTemp, setStorageTemp] = useState('-196°C (LN2)')
+  const [thawMethod, setThawMethod] = useState('37°C водяная баня')
+  const [thawDuration, setThawDuration] = useState('2 мин')
+  const [viabilityPostThaw, setViabilityPostThaw] = useState('')
   const [history, setHistory] = useState<any[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
 
@@ -122,6 +132,22 @@ export function CultureDetail() {
     }
   }
 
+  async function logContainerHistory(containerIds: number[], actionType: string, description: string, oldVals?: any, newVals?: any) {
+    try {
+      const entries = containerIds.map(cid => ({
+        container_id: cid,
+        action_type: actionType,
+        description,
+        old_values: oldVals,
+        new_values: newVals,
+        performed_by_user_id: getCurrentUserId()
+      }))
+      await (supabase.from('container_history' as any) as any).insert(entries)
+    } catch (error) {
+      console.error('Error logging container history:', error)
+    }
+  }
+
   async function loadCulture() {
     try {
       const { data: cultureData, error: cultureError } = await supabase
@@ -133,8 +159,11 @@ export function CultureDetail() {
             donors (id, donor_code, full_name)
           ),
           combined_media_batches (
-            batch_code,
+            batch_code, expiry_date,
             media_recipes (recipe_name)
+          ),
+          orders (
+            id, order_code, client_name
           )
         `)
         .eq('id', parseInt(id!))
@@ -223,8 +252,11 @@ export function CultureDetail() {
       // Вставляем новые контейнеры
       await (supabase.from('containers') as any).insert(newContainers)
       
-      // Помечаем исходные как disposed
-      await supabase.from('containers').update({ status: 'disposed' as any }).in('id', selectedContainers)
+      // Помечаем исходные как disposed и обнуляем объём
+      await supabase.from('containers').update({ status: 'disposed' as any, volume_ml: 0 }).in('id', selectedContainers)
+      
+      // Записываем историю контейнеров
+      await logContainerHistory(selectedContainers, 'passage', `Пассирование P${culture.current_passage} → P${newPassage}`, { status: 'active' }, { status: 'disposed' })
       
       // Обновляем current_passage культуры
       await supabase.from('cultures').update({ current_passage: newPassage }).eq('id', culture.id)
@@ -270,8 +302,11 @@ export function CultureDetail() {
       
       await (supabase.from('containers') as any).insert(cryovials)
       
-      // Помечаем исходные контейнеры как frozen
-      await supabase.from('containers').update({ status: 'frozen' as any }).in('id', selectedContainers)
+      // Помечаем исходные контейнеры как frozen и обнуляем объём
+      await supabase.from('containers').update({ status: 'frozen' as any, volume_ml: 0 }).in('id', selectedContainers)
+      
+      // Записываем историю контейнеров
+      await logContainerHistory(selectedContainers, 'freeze', `Банкирование ${bankType.toUpperCase()}, ${vialCount} криовиал, ${cryoMedia}, ${freezingRate}`, { status: 'active' }, { status: 'frozen', cryoMedia, freezingRate, storageTemp })
       
       // Если все контейнеры заморожены, обновляем статус культуры
       const remainingActive = containers.filter(c => c.status === 'active' && !selectedContainers.includes(c.id)).length
@@ -322,8 +357,11 @@ export function CultureDetail() {
       
       await (supabase.from('containers') as any).insert(newContainers)
       
-      // Помечаем исходные как thawed (использованы)
-      await supabase.from('containers').update({ status: 'thawed' as any }).in('id', selectedContainers)
+      // Помечаем исходные как thawed (использованы) и обнуляем объём
+      await supabase.from('containers').update({ status: 'thawed' as any, volume_ml: 0 }).in('id', selectedContainers)
+      
+      // Записываем историю контейнеров
+      await logContainerHistory(selectedContainers, 'thaw', `Размораживание ${thawMethod}, ${thawDuration}, жизнеспособность: ${viabilityPostThaw || 'N/A'}`, { status: 'frozen' }, { status: 'thawed', thawMethod, thawDuration, viabilityPostThaw })
       
       // Если культура была frozen, переводим в active
       if (culture.status === 'frozen') {
@@ -382,6 +420,10 @@ export function CultureDetail() {
                 {culture.cell_type} • Пассаж P{culture.current_passage}
                 {culture.tissue_source && ` • ${culture.tissue_source}`}
               </p>
+              <div className="flex items-center gap-4 mt-2 text-xs text-slate-400">
+                <span>Создана: {new Date(culture.created_at).toLocaleDateString('ru')}</span>
+                {culture.updated_at && <span>Обновлена: {new Date(culture.updated_at).toLocaleDateString('ru')}</span>}
+              </div>
             </div>
           </div>
 
@@ -494,12 +536,144 @@ export function CultureDetail() {
               <p className="text-sm text-slate-500 mt-1">
                 {culture.combined_media_batches.media_recipes?.recipe_name}
               </p>
+              {culture.combined_media_batches.expiry_date && (
+                <p className="text-xs text-amber-600 mt-1">
+                  Срок годности: {new Date(culture.combined_media_batches.expiry_date).toLocaleDateString('ru')}
+                </p>
+              )}
             </>
           ) : (
             <p className="text-slate-500">Не указана</p>
           )}
         </div>
       </div>
+
+      {/* Growth Metrics */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <TrendingUp className="h-5 w-5 text-slate-400" />
+          <h2 className="font-semibold text-slate-900">Эффективность роста</h2>
+        </div>
+        
+        {(() => {
+          // Расчёт метрик роста из контейнеров
+          const activeContainersData = containers.filter(c => c.cell_concentration && c.viability_percent)
+          const passageData = Object.entries(containersByPassage).map(([p, cs]) => {
+            const totalCells = cs.reduce((sum, c) => sum + (c.cell_concentration || 0), 0)
+            const avgViability = cs.reduce((sum, c) => sum + (c.viability_percent || 0), 0) / (cs.filter(c => c.viability_percent).length || 1)
+            return { passage: parseInt(p), totalCells, avgViability, count: cs.length }
+          }).sort((a, b) => a.passage - b.passage)
+
+          // Расчёт PDL (Population Doubling Level)
+          let cumulativePDL = 0
+          if (passageData.length >= 2) {
+            for (let i = 1; i < passageData.length; i++) {
+              const prev = passageData[i-1].totalCells
+              const curr = passageData[i].totalCells
+              if (prev > 0 && curr > 0) {
+                cumulativePDL += Math.log2(curr / prev)
+              }
+            }
+          }
+
+          // Средняя жизнеспособность
+          const avgViability = activeContainersData.length > 0
+            ? activeContainersData.reduce((sum, c) => sum + (c.viability_percent || 0), 0) / activeContainersData.length
+            : 0
+
+          // Общее количество клеток
+          const totalCells = containers.filter(c => c.status === 'active').reduce((sum, c) => sum + (c.cell_concentration || 0), 0)
+
+          // Расчёт времени удвоения (дней между пассажами / PDL)
+          const daysSinceStart = culture.created_at ? Math.floor((Date.now() - new Date(culture.created_at).getTime()) / (1000*60*60*24)) : 0
+          const avgDoublingTime = cumulativePDL > 0 ? (daysSinceStart / cumulativePDL).toFixed(1) : null
+
+          const maxCells = Math.max(...passageData.map(p => p.totalCells), 1)
+
+          return (
+            <>
+              {/* Метрики */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="p-4 bg-emerald-50 rounded-lg">
+                  <p className="text-xs text-emerald-600 font-medium">Всего клеток (активных)</p>
+                  <p className="text-xl font-bold text-emerald-700">
+                    {totalCells > 0 ? `${(totalCells / 1000000).toFixed(1)}M` : '—'}
+                  </p>
+                </div>
+                <div className="p-4 bg-blue-50 rounded-lg">
+                  <p className="text-xs text-blue-600 font-medium">Ср. жизнеспособность</p>
+                  <p className="text-xl font-bold text-blue-700">
+                    {avgViability > 0 ? `${avgViability.toFixed(1)}%` : '—'}
+                  </p>
+                </div>
+                <div className="p-4 bg-purple-50 rounded-lg">
+                  <p className="text-xs text-purple-600 font-medium">Уровень удвоения (PDL)</p>
+                  <p className="text-xl font-bold text-purple-700">
+                    {cumulativePDL > 0 ? cumulativePDL.toFixed(2) : '—'}
+                  </p>
+                </div>
+                <div className="p-4 bg-amber-50 rounded-lg">
+                  <p className="text-xs text-amber-600 font-medium">Время удвоения</p>
+                  <p className="text-xl font-bold text-amber-700">
+                    {avgDoublingTime ? `${avgDoublingTime} дн.` : '—'}
+                  </p>
+                </div>
+              </div>
+
+              {/* График роста */}
+              {passageData.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <BarChart3 className="h-4 w-4 text-slate-400" />
+                    <h3 className="text-sm font-medium text-slate-700">Кривая роста (по пассажам)</h3>
+                  </div>
+                  <div className="flex items-end gap-2 h-32">
+                    {passageData.map((p, idx) => (
+                      <div key={idx} className="flex-1 flex flex-col items-center">
+                        <div 
+                          className="w-full bg-emerald-500 rounded-t transition-all hover:bg-emerald-600"
+                          style={{ height: `${(p.totalCells / maxCells) * 100}%`, minHeight: p.totalCells > 0 ? '4px' : '0' }}
+                          title={`P${p.passage}: ${(p.totalCells/1000000).toFixed(2)}M клеток`}
+                        />
+                        <span className="text-xs text-slate-500 mt-1">P{p.passage}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex justify-between text-xs text-slate-400 mt-2">
+                    <span>Начало</span>
+                    <span>Текущий пассаж</span>
+                  </div>
+                </div>
+              )}
+
+              {passageData.length === 0 && (
+                <div className="text-center py-4 text-slate-500">
+                  <TrendingUp className="h-8 w-8 mx-auto mb-2 text-slate-300" />
+                  <p>Нет данных для расчёта метрик</p>
+                  <p className="text-xs mt-1">Добавьте данные о концентрации клеток в контейнерах</p>
+                </div>
+              )}
+            </>
+          )
+        })()}
+      </div>
+
+      {/* Order Info (if exists) */}
+      {culture.orders && (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Package className="h-4 w-4 text-slate-400" />
+            <h3 className="font-medium text-slate-700">Заказ</h3>
+          </div>
+          <Link 
+            to={`/orders/${culture.orders.id}`}
+            className="text-emerald-600 hover:text-emerald-700 font-medium"
+          >
+            {culture.orders.order_code}
+          </Link>
+          <p className="text-sm text-slate-500 mt-1">{culture.orders.client_name}</p>
+        </div>
+      )}
 
       {/* Containers by Passage */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200">
@@ -857,6 +1031,33 @@ export function CultureDetail() {
                 />
               </div>
 
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-xs font-medium mb-1">Криосреда</label>
+                  <select value={cryoMedia} onChange={e => setCryoMedia(e.target.value)} className="w-full px-2 py-1.5 border rounded text-sm">
+                    <option>DMSO 10%</option>
+                    <option>DMSO 5%</option>
+                    <option>Glycerol 10%</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1">Скорость</label>
+                  <select value={freezingRate} onChange={e => setFreezingRate(e.target.value)} className="w-full px-2 py-1.5 border rounded text-sm">
+                    <option>-1°C/min</option>
+                    <option>-0.5°C/min</option>
+                    <option>Быстрая</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1">Хранение</label>
+                  <select value={storageTemp} onChange={e => setStorageTemp(e.target.value)} className="w-full px-2 py-1.5 border rounded text-sm">
+                    <option>-196°C (LN2)</option>
+                    <option>-150°C</option>
+                    <option>-80°C</option>
+                  </select>
+                </div>
+              </div>
+
               <div className="bg-blue-50 rounded-lg p-3">
                 <p className="text-sm text-blue-700">
                   <strong>Результат:</strong> {vialCount} криовиал {bankType.toUpperCase()} из P{culture.current_passage}
@@ -909,6 +1110,30 @@ export function CultureDetail() {
                       <span className="text-xs text-slate-500">P{c.passage_number}</span>
                     </label>
                   ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-xs font-medium mb-1">Метод</label>
+                  <select value={thawMethod} onChange={e => setThawMethod(e.target.value)} className="w-full px-2 py-1.5 border rounded text-sm">
+                    <option>37°C водяная баня</option>
+                    <option>Комнатная t°</option>
+                    <option>Специальный</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1">Время</label>
+                  <select value={thawDuration} onChange={e => setThawDuration(e.target.value)} className="w-full px-2 py-1.5 border rounded text-sm">
+                    <option>1 мин</option>
+                    <option>2 мин</option>
+                    <option>3 мин</option>
+                    <option>5 мин</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1">Жизнесп. %</label>
+                  <input type="text" value={viabilityPostThaw} onChange={e => setViabilityPostThaw(e.target.value)} placeholder="напр. 85%" className="w-full px-2 py-1.5 border rounded text-sm" />
                 </div>
               </div>
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { getCurrentUserId } from '@/hooks/useAuth'
 import { sendTelegramNotification } from '@/lib/telegram'
 import { Database } from '@/lib/database.types'
 import { Play, CheckCircle, Clock, Pause, XCircle, ChevronRight, AlertTriangle, Beaker, FlaskConical, QrCode } from 'lucide-react'
@@ -142,7 +143,7 @@ export function ProcessExecutionPage() {
         process_code: processCode,
         process_template_id: startForm.template_id,
         culture_id: startForm.culture_id,
-        started_by_user_id: 1,
+        started_by_user_id: getCurrentUserId(),
         started_at: new Date().toISOString(),
         status: 'in_progress' as const
       })
@@ -255,7 +256,7 @@ export function ProcessExecutionPage() {
       deviation_type: 'cca_fail' as const,
       severity: step.process_template_steps?.is_critical ? 'critical' as const : 'major' as const,
       description: `CCA fail при выполнении шага "${step.process_template_steps?.step_name}": ${ccaResult.message}`,
-      detected_by_user_id: 1,
+      detected_by_user_id: getCurrentUserId(),
       detected_at: new Date().toISOString(),
       culture_id: selectedProcess?.culture_id || null,
       executed_step_id: step.id,

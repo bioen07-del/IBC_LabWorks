@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { getCurrentUserId } from '@/hooks/useAuth'
 import { ArrowLeft, FlaskConical, Check, AlertCircle } from 'lucide-react'
 
 type ApprovedDonation = {
@@ -40,6 +41,10 @@ export function CultureNew() {
     donation_id: '',
     cell_type: '',
     tissue_source: '',
+    culture_type: 'primary' as 'primary' | 'passage' | 'mcb' | 'wcb',
+    isolation_date: new Date().toISOString().split('T')[0],
+    at_risk: false,
+    at_risk_reason: '',
     container_type_id: '',
     media_batch_id: '',
     initial_volume_ml: '',
@@ -136,9 +141,16 @@ export function CultureNew() {
           donation_id: parseInt(form.donation_id),
           cell_type: form.cell_type,
           tissue_source: form.tissue_source || null,
+          culture_type: form.culture_type,
+          isolation_date: form.isolation_date || null,
+          isolated_by_user_id: getCurrentUserId(),
           current_passage: 0,
           status: 'active',
-          risk_flag: 'none',
+          risk_flag: form.at_risk ? 'at_risk' : 'none',
+          at_risk: form.at_risk,
+          at_risk_reason: form.at_risk ? form.at_risk_reason : null,
+          at_risk_set_at: form.at_risk ? new Date().toISOString() : null,
+          at_risk_set_by_user_id: form.at_risk ? getCurrentUserId() : null,
           media_batch_used_id: form.media_batch_id ? parseInt(form.media_batch_id) : null,
         })
         .select()
@@ -253,6 +265,37 @@ export function CultureNew() {
                 </select>
               </div>
 
+              {/* Culture Type */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Тип культуры <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={form.culture_type}
+                    onChange={(e) => setForm({ ...form, culture_type: e.target.value as any })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value="primary">Первичная (Primary)</option>
+                    <option value="passage">Пассажированная (Passage)</option>
+                    <option value="mcb">Мастер-банк (MCB)</option>
+                    <option value="wcb">Рабочий банк (WCB)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Дата изоляции <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={form.isolation_date}
+                    onChange={(e) => setForm({ ...form, isolation_date: e.target.value })}
+                    required
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+
               {/* Cell Type & Tissue Source */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -280,6 +323,34 @@ export function CultureNew() {
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
+              </div>
+
+              {/* Risk Flag */}
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg space-y-3">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.at_risk}
+                    onChange={(e) => setForm({ ...form, at_risk: e.target.checked })}
+                    className="w-5 h-5 text-amber-600 rounded border-slate-300 focus:ring-amber-500"
+                  />
+                  <span className="text-sm font-medium text-amber-800">
+                    ⚠️ Культура из донации с риском
+                  </span>
+                </label>
+                {form.at_risk && (
+                  <div>
+                    <label className="block text-sm font-medium text-amber-800 mb-1">Причина риска *</label>
+                    <textarea
+                      value={form.at_risk_reason}
+                      onChange={(e) => setForm({ ...form, at_risk_reason: e.target.value })}
+                      className="w-full px-3 py-2 border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
+                      placeholder="Пограничные серологические параметры, нестандартный донор..."
+                      rows={2}
+                      required={form.at_risk}
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Initial Container */}

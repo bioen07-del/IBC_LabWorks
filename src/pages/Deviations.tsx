@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { getCurrentUserId } from '@/hooks/useAuth';
 import { AlertTriangle, Plus, Search, X, FileText, CheckCircle, Clock, Shield, Ban, Trash2 } from 'lucide-react';
 
 interface Deviation {
@@ -86,7 +87,7 @@ export default function Deviations() {
       deviation_type: formData.deviation_type,
       severity: formData.severity,
       description: formData.description,
-      detected_by_user_id: 1,
+      detected_by_user_id: getCurrentUserId(),
       status: 'open',
       qp_review_required: formData.severity === 'critical'
     });
@@ -122,7 +123,7 @@ export default function Deviations() {
       qp_review_decision: qpDecision as any,
       qp_review_comments: qpComments || null,
       qp_reviewed_at: new Date().toISOString(),
-      qp_reviewed_by_user_id: 1,
+      qp_reviewed_by_user_id: getCurrentUserId(),
       status: qpDecision === 'continue' ? 'resolved' as const : 'under_review' as const,
       resolved_at: qpDecision === 'continue' ? new Date().toISOString() : null
     }).eq('id', selectedDeviation.id);

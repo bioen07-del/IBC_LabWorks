@@ -1,11 +1,13 @@
 import { Outlet } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Bell, Search } from 'lucide-react'
+import { VersionChecker } from '../VersionChecker'
 
 export function MainLayout() {
   return (
     <div className="flex min-h-screen bg-slate-50">
       <Sidebar />
+      <VersionChecker />
       <div className="flex-1 flex flex-col">
         {/* Header */}
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6">
