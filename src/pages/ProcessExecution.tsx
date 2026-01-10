@@ -623,6 +623,7 @@ export function ProcessExecutionPage() {
                     }`}
                   >
                     {step.status === 'completed' && <CheckCircle className="h-3 w-3" />}
+                    {step.process_template_steps?.is_critical && <span className="text-red-500">●</span>}
                     {idx + 1}. {step.process_template_steps?.step_name}
                   </div>
                 ))}
@@ -636,8 +637,11 @@ export function ProcessExecutionPage() {
                   <div className="bg-slate-50 rounded-lg p-4">
                     <div className="flex items-start justify-between">
                       <div>
-                        <h3 className="text-lg font-bold">
+                        <h3 className="text-lg font-bold flex items-center gap-2">
                           Шаг {currentStepIndex + 1}: {currentStep.process_template_steps?.step_name}
+                          {currentStep.process_template_steps?.is_critical && (
+                            <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full">⚠️ КРИТИЧЕСКИЙ</span>
+                          )}
                         </h3>
                         <p className="text-sm text-slate-500 mt-1">
                           Тип: {currentStep.process_template_steps?.step_type} • 

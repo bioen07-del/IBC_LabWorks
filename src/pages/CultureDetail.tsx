@@ -813,6 +813,14 @@ export function CultureDetail() {
         </div>
 
         <div className="divide-y divide-slate-100">
+          {/* UX-4: Empty state */}
+          {containers.length === 0 && (
+            <div className="p-8 text-center">
+              <Package className="h-12 w-12 mx-auto text-slate-300 mb-3" />
+              <p className="text-slate-500 font-medium">Контейнеры ещё не созданы</p>
+              <p className="text-sm text-slate-400 mt-1">Контейнеры будут созданы при выполнении шага "Высев клеток"</p>
+            </div>
+          )}
           {displayedPassages.map((passage) => (
             <div key={passage} className="p-5">
               <div className="flex items-center gap-2 mb-3">
@@ -1086,10 +1094,31 @@ export function CultureDetail() {
                 </div>
               </div>
 
-              <div className="bg-slate-50 rounded-lg p-3">
+              <div className="bg-slate-50 rounded-lg p-3 space-y-2">
                 <p className="text-sm text-slate-600">
                   <strong>Результат:</strong> {selectedContainers.length} контейнер(ов) → {childContainerCount}× {containerTypes.find(t => t.id === childContainerTypeId)?.type_name || 'того же типа'} (P{culture.current_passage + 1})
                 </p>
+                {/* UX-1: Расчёт площади */}
+                {(() => {
+                  const selectedType = containerTypes.find(t => t.id === childContainerTypeId) as any
+                  const parentType = containers.find(c => selectedContainers.includes(c.id))?.container_types as any
+                  const area = selectedType?.surface_area_cm2 || parentType?.surface_area_cm2 || 0
+                  const totalArea = area * childContainerCount
+                  return totalArea > 0 ? (
+                    <>
+                      <p className="text-xs text-slate-500">
+                        📐 Общая площадь: <strong>{totalArea.toLocaleString()} см²</strong>
+                        {totalArea >= 500 && <span className="ml-2 text-emerald-600">✓ Scale-up</span>}
+                      </p>
+                      {/* UX-2: Предупреждение о смене типа */}
+                      {childContainerTypeId && parentType && selectedType?.type_code !== parentType?.type_code && (
+                        <p className="text-xs text-amber-600 mt-1">
+                          ⚠️ Смена типа контейнера: {parentType?.type_code} → {selectedType?.type_code}
+                        </p>
+                      )}
+                    </>
+                  ) : null
+                })()}
               </div>
 
               <button
