@@ -556,11 +556,13 @@ export type Database = {
           at_risk_set_by_user_id: number | null
           cell_type: string
           created_at: string
+          created_by_user_id: number | null
           culture_code: string
           culture_type: Database["public"]["Enums"]["culture_type"] | null
           current_passage: number
           donation_id: number
           id: number
+          initial_process_template_id: number | null
           isolated_by_user_id: number | null
           isolation_date: string | null
           media_batch_used_id: number | null
@@ -580,11 +582,13 @@ export type Database = {
           at_risk_set_by_user_id?: number | null
           cell_type: string
           created_at?: string
+          created_by_user_id?: number | null
           culture_code: string
           culture_type?: Database["public"]["Enums"]["culture_type"] | null
           current_passage?: number
           donation_id: number
           id?: number
+          initial_process_template_id?: number | null
           isolated_by_user_id?: number | null
           isolation_date?: string | null
           media_batch_used_id?: number | null
@@ -604,11 +608,13 @@ export type Database = {
           at_risk_set_by_user_id?: number | null
           cell_type?: string
           created_at?: string
+          created_by_user_id?: number | null
           culture_code?: string
           culture_type?: Database["public"]["Enums"]["culture_type"] | null
           current_passage?: number
           donation_id?: number
           id?: number
+          initial_process_template_id?: number | null
           isolated_by_user_id?: number | null
           isolation_date?: string | null
           media_batch_used_id?: number | null
@@ -630,10 +636,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "cultures_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "cultures_donation_id_fkey"
             columns: ["donation_id"]
             isOneToOne: false
             referencedRelation: "donations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cultures_initial_process_template_id_fkey"
+            columns: ["initial_process_template_id"]
+            isOneToOne: false
+            referencedRelation: "process_templates"
             referencedColumns: ["id"]
           },
           {
@@ -1742,6 +1762,76 @@ export type Database = {
           },
         ]
       }
+      observations: {
+        Row: {
+          confluence_percent: number | null
+          container_id: number | null
+          contamination_detected: boolean | null
+          contamination_type: string | null
+          created_at: string | null
+          culture_id: number
+          id: number
+          images: Json | null
+          morphology_description: string | null
+          notes: string | null
+          observation_date: string
+          recorded_by_user_id: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          confluence_percent?: number | null
+          container_id?: number | null
+          contamination_detected?: boolean | null
+          contamination_type?: string | null
+          created_at?: string | null
+          culture_id: number
+          id?: number
+          images?: Json | null
+          morphology_description?: string | null
+          notes?: string | null
+          observation_date?: string
+          recorded_by_user_id?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          confluence_percent?: number | null
+          container_id?: number | null
+          contamination_detected?: boolean | null
+          contamination_type?: string | null
+          created_at?: string | null
+          culture_id?: number
+          id?: number
+          images?: Json | null
+          morphology_description?: string | null
+          notes?: string | null
+          observation_date?: string
+          recorded_by_user_id?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "observations_container_id_fkey"
+            columns: ["container_id"]
+            isOneToOne: false
+            referencedRelation: "containers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "observations_culture_id_fkey"
+            columns: ["culture_id"]
+            isOneToOne: false
+            referencedRelation: "cultures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "observations_recorded_by_user_id_fkey"
+            columns: ["recorded_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           cell_type_required: string
@@ -1869,11 +1959,13 @@ export type Database = {
       process_templates: {
         Row: {
           applicable_cell_types: Json | null
+          applicable_tissue_types: Json | null
           created_at: string
           description: string | null
           estimated_duration_minutes: number | null
           id: number
           is_active: boolean
+          is_universal: boolean | null
           name: string
           requires_clean_room: boolean
           sop_document_url: string | null
@@ -1883,11 +1975,13 @@ export type Database = {
         }
         Insert: {
           applicable_cell_types?: Json | null
+          applicable_tissue_types?: Json | null
           created_at?: string
           description?: string | null
           estimated_duration_minutes?: number | null
           id?: number
           is_active?: boolean
+          is_universal?: boolean | null
           name: string
           requires_clean_room?: boolean
           sop_document_url?: string | null
@@ -1897,11 +1991,13 @@ export type Database = {
         }
         Update: {
           applicable_cell_types?: Json | null
+          applicable_tissue_types?: Json | null
           created_at?: string
           description?: string | null
           estimated_duration_minutes?: number | null
           id?: number
           is_active?: boolean
+          is_universal?: boolean | null
           name?: string
           requires_clean_room?: boolean
           sop_document_url?: string | null

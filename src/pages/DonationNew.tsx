@@ -139,7 +139,8 @@ export function DonationNew() {
       const { data: codeData } = await supabase.rpc('generate_donation_code')
       const donationCode = codeData || `DNT-${Date.now()}`
 
-      const { error: insertError } = await supabase
+      // 1. Создаём донацию
+      const { data: donationData, error: insertError } = await supabase
         .from('donations')
         .insert({
           donor_id: parseInt(donorId!),
@@ -161,10 +162,60 @@ export function DonationNew() {
           serology_syphilis: form.serology_syphilis as any,
           status: 'received',
         })
+        .select('id')
+        .single()
 
       if (insertError) throw insertError
 
-      navigate(`/donors/${donorId}`)
+      // 2. Автоматически создаём первичную культуру (P0) из донации
+      const { data: cultureCodeData } = await supabase.rpc('generate_culture_code')
+      const cultureCode = cultureCodeData || `CUL-${Date.now()}`
+
+      const { data: cultureData, error: cultureError } = await supabase
+        .from('cultures')
+        .insert({
+          culture_code: cultureCode,
+          donation_id: donationData?.id,
+          cell_type: form.cell_type,
+          tissue_source: form.tissue_type,
+          current_passage: 0,
+          status: 'active',
+          risk_flag: 'none',
+          created_by_user_id: getCurrentUserId(),
+        })
+        .select('id')
+        .single()
+
+      if (cultureError) throw cultureError
+
+      // 3. Находим и автоматически стартуем процесс "Первичное выделение" (если есть)
+      const { data: processTemplate } = await supabase
+        .from('process_templates')
+        .select('id')
+        .or('name.ilike.%выделение%,name.ilike.%isolation%,name.ilike.%первичн%')
+        .eq('is_active', true)
+        .limit(1)
+        .single()
+
+      if (processTemplate && cultureData) {
+        // Создаём выполняемый процесс
+        const { data: processCodeData } = await supabase.rpc('generate_process_code')
+        const processCode = processCodeData || `PROC-${Date.now()}`
+
+        await supabase
+          .from('executed_processes')
+          .insert({
+            process_code: processCode,
+            process_template_id: processTemplate.id,
+            culture_id: cultureData.id,
+            started_by_user_id: getCurrentUserId(),
+            started_at: new Date().toISOString(),
+            status: 'in_progress',
+          })
+      }
+
+      // Перенаправляем на карточку культуры (не донора!)
+      navigate(`/cultures/${cultureData?.id}`)
     } catch (err: any) {
       setError(err.message || 'Ошибка при создании донации')
     } finally {

@@ -103,6 +103,12 @@ export function CultureDetail() {
   const [processTemplates, setProcessTemplates] = useState<ProcessTemplate[]>([])
   const [showProcessDropdown, setShowProcessDropdown] = useState(false)
   const [startingProcess, setStartingProcess] = useState(false)
+  // Inline process execution
+  const [activeProcessId, setActiveProcessId] = useState<number | null>(null)
+  const [activeProcess, setActiveProcess] = useState<any>(null)
+  const [activeSteps, setActiveSteps] = useState<any[]>([])
+  const [currentStepIdx, setCurrentStepIdx] = useState(0)
+  const [executingStep, setExecutingStep] = useState(false)
   // CONTAINER-002: Гибкий выбор дочерних контейнеров - ОБНОВЛЕНО для множественных групп
   const [containerTypes, setContainerTypes] = useState<{id: number; type_code: string; type_name: string; surface_area_cm2?: number}[]>([])
   // Множественные группы контейнеров (Задача 2)
@@ -116,6 +122,7 @@ export function CultureDetail() {
       loadHistory()
       loadProcessTemplates()
       loadContainerTypes()
+      loadActiveProcess()
     }
   }, [id])
 
@@ -156,11 +163,30 @@ export function CultureDetail() {
   }
 
   async function loadProcessTemplates() {
+    // Загружаем все шаблоны с информацией о фильтрации
     const { data } = await supabase
       .from('process_templates')
-      .select('id, template_code, name')
-      .order('id')
-    setProcessTemplates(data || [])
+      .select('id, template_code, name, applicable_cell_types, is_universal')
+      .eq('is_active', true)
+      .order('name')
+    
+    if (!data || !culture) {
+      setProcessTemplates(data || [])
+      return
+    }
+    
+    // Фильтруем: универсальные ИЛИ подходящие по типу клеток
+    const cellType = culture.cell_type
+    const filtered = data.filter((t: any) => {
+      if (t.is_universal) return true
+      const types = t.applicable_cell_types as string[] || []
+      return types.length === 0 || types.some(ct => 
+        ct.toLowerCase().includes(cellType.toLowerCase()) || 
+        cellType.toLowerCase().includes(ct.toLowerCase())
+      )
+    })
+    
+    setProcessTemplates(filtered)
   }
 
   async function handleStartProcess(templateId: number) {
@@ -197,24 +223,28 @@ export function CultureDetail() {
       
       // 3. Копируем шаги в executed_steps
       const steps = (template as any).process_template_steps || []
+      let createdSteps: any[] = []
       if (steps.length > 0) {
-        const executedSteps = steps.map((step: any, idx: number) => ({
-          executed_process_id: newProcess.id,
-          step_order: step.step_order || idx + 1,
-          step_name: step.step_name,
-          step_type: step.step_type,
-          instructions: step.instructions,
-          equipment_required: step.equipment_required,
-          duration_minutes: step.duration_minutes,
-          is_critical: step.is_critical,
-          status: idx === 0 ? 'in_progress' : 'pending'
-        }))
+        const stepsToInsert = steps
+          .sort((a: any, b: any) => (a.step_number || 0) - (b.step_number || 0))
+          .map((step: any, idx: number) => ({
+            executed_process_id: newProcess.id,
+            process_template_step_id: step.id,
+            status: idx === 0 ? 'in_progress' : 'pending',
+            started_at: idx === 0 ? new Date().toISOString() : null
+          }))
         
-        await (supabase.from('executed_steps') as any).insert(executedSteps)
+        const { data: insertedSteps } = await (supabase.from('executed_steps') as any)
+          .insert(stepsToInsert)
+          .select('*, process_template_steps(*)')
+        createdSteps = insertedSteps || []
       }
       
-      // 4. Перенаправляем на страницу выполнения
-      navigate(`/processes/${newProcess.id}/execute`)
+      // 4. Показываем процесс inline вместо перенаправления
+      setActiveProcessId(newProcess.id)
+      setActiveProcess({ ...newProcess, process_templates: template })
+      setActiveSteps(createdSteps)
+      setCurrentStepIdx(0)
     } catch (error) {
       console.error('Error starting process:', error)
       alert('Ошибка при запуске процесса')
@@ -253,6 +283,100 @@ export function CultureDetail() {
     } catch (error) {
       console.error('Error logging history:', error)
     }
+  }
+
+  // Загрузка активного процесса для культуры
+  async function loadActiveProcess() {
+    if (!id) return
+    const { data: processes } = await (supabase
+      .from('executed_processes') as any)
+      .select('*, process_templates(name, template_code)')
+      .eq('culture_id', parseInt(id))
+      .eq('status', 'in_progress')
+      .limit(1)
+    
+    if (processes && processes.length > 0) {
+      const proc = processes[0]
+      setActiveProcessId(proc.id)
+      setActiveProcess(proc)
+      
+      // Загружаем шаги
+      const { data: steps } = await (supabase
+        .from('executed_steps') as any)
+        .select('*, process_template_steps(step_name, step_number, step_type, description, is_critical, cca_rules)')
+        .eq('executed_process_id', proc.id)
+        .order('id')
+      
+      setActiveSteps(steps || [])
+      // Находим текущий шаг (первый не completed)
+      const idx = (steps || []).findIndex((s: any) => s.status !== 'completed')
+      setCurrentStepIdx(idx >= 0 ? idx : 0)
+    }
+  }
+
+  // Выполнение текущего шага
+  async function completeCurrentStep() {
+    if (!activeSteps[currentStepIdx]) return
+    setExecutingStep(true)
+    
+    try {
+      const step = activeSteps[currentStepIdx]
+      
+      // Завершаем текущий шаг
+      await (supabase.from('executed_steps') as any)
+        .update({ 
+          status: 'completed', 
+          completed_at: new Date().toISOString(),
+          executed_by_user_id: getCurrentUserId()
+        })
+        .eq('id', step.id)
+      
+      // Обновляем локальный state
+      const updatedSteps = [...activeSteps]
+      updatedSteps[currentStepIdx] = { ...step, status: 'completed' }
+      
+      // Если есть следующий шаг - запускаем его
+      if (currentStepIdx + 1 < activeSteps.length) {
+        const nextStep = activeSteps[currentStepIdx + 1]
+        await (supabase.from('executed_steps') as any)
+          .update({ status: 'in_progress', started_at: new Date().toISOString() })
+          .eq('id', nextStep.id)
+        updatedSteps[currentStepIdx + 1] = { ...nextStep, status: 'in_progress' }
+        setActiveSteps(updatedSteps)
+        setCurrentStepIdx(currentStepIdx + 1)
+      } else {
+        // Все шаги выполнены - завершаем процесс
+        await (supabase.from('executed_processes') as any)
+          .update({ status: 'completed', completed_at: new Date().toISOString() })
+          .eq('id', activeProcessId)
+        
+        setActiveSteps(updatedSteps)
+        setActiveProcessId(null)
+        setActiveProcess(null)
+        logHistory('process_completed', `Процесс завершён: ${activeProcess?.process_templates?.name}`)
+        alert('✅ Процесс успешно завершён!')
+      }
+    } catch (error) {
+      console.error('Error completing step:', error)
+      alert('Ошибка при выполнении шага')
+    } finally {
+      setExecutingStep(false)
+    }
+  }
+
+  // Закрыть процесс (отмена)
+  async function cancelProcess() {
+    if (!activeProcessId) return
+    if (!confirm('Отменить выполнение процесса?')) return
+    
+    await (supabase.from('executed_processes') as any)
+      .update({ status: 'aborted' })
+      .eq('id', activeProcessId)
+    
+    setActiveProcessId(null)
+    setActiveProcess(null)
+    setActiveSteps([])
+    logHistory('process_cancelled', `Процесс отменён: ${activeProcess?.process_templates?.name}`)
   }
 
   async function logContainerHistory(containerIds: number[], actionType: string, description: string, oldVals?: any, newVals?: any) {
@@ -646,6 +770,80 @@ export function CultureDetail() {
           </div>
         )}
       </div>
+
+      {/* Active Process Inline Execution */}
+      {activeProcessId && activeProcess && (
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl shadow-sm border border-blue-200 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Play className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-slate-900">
+                  {activeProcess.process_templates?.name || 'Процесс'}
+                </h3>
+                <p className="text-sm text-slate-500">
+                  Шаг {currentStepIdx + 1} из {activeSteps.length}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={cancelProcess}
+              className="text-sm text-red-600 hover:text-red-800"
+            >
+              Отменить
+            </button>
+          </div>
+          
+          {/* Steps progress */}
+          <div className="flex gap-1 mb-4">
+            {activeSteps.map((s, i) => (
+              <div
+                key={s.id}
+                className={`h-2 flex-1 rounded ${
+                  s.status === 'completed' ? 'bg-emerald-500' :
+                  s.status === 'in_progress' ? 'bg-blue-500 animate-pulse' :
+                  'bg-slate-200'
+                }`}
+              />
+            ))}
+          </div>
+          
+          {/* Current step */}
+          {activeSteps[currentStepIdx] && (
+            <div className="bg-white rounded-lg p-4 border border-blue-100">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="font-medium text-slate-900">
+                    {activeSteps[currentStepIdx].process_template_steps?.step_name || `Шаг ${currentStepIdx + 1}`}
+                  </p>
+                  <p className="text-sm text-slate-500 mt-1">
+                    {activeSteps[currentStepIdx].process_template_steps?.description || 'Выполните действие и нажмите "Завершить шаг"'}
+                  </p>
+                  {activeSteps[currentStepIdx].process_template_steps?.is_critical && (
+                    <span className="inline-flex items-center gap-1 mt-2 px-2 py-1 bg-red-100 text-red-700 rounded text-xs">
+                      <AlertTriangle className="h-3 w-3" /> Критический шаг
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={completeCurrentStep}
+                  disabled={executingStep}
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {executingStep ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Check className="h-4 w-4" />
+                  )}
+                  Завершить шаг
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Info Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

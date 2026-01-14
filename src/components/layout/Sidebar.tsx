@@ -28,7 +28,6 @@ const navigation = [
   { name: 'Культуры', href: '/cultures', icon: FlaskConical },
   { name: 'Доноры', href: '/donors', icon: Users },
   { name: 'Заказы', href: '/orders', icon: ShoppingCart },
-  { name: 'Процессы', href: '/processes', icon: Play },
   { name: 'Среды', href: '/media', icon: Beaker },
   { name: 'Инвентарь', href: '/inventory', icon: Package },
   { name: 'Рецепты сред', href: '/media-recipes', icon: ClipboardList },

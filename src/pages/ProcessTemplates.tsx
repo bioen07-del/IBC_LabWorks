@@ -47,8 +47,12 @@ export function ProcessTemplatesPage() {
     is_active: true,
     estimated_duration_minutes: 30,
     requires_clean_room: true,
-    applicable_cell_types: [] as string[]
+    applicable_cell_types: [] as string[],
+    is_universal: false,
+    applicable_tissue_types: [] as string[]
   })
+
+  const tissueTypeOptions = ['Bone Marrow', 'Adipose', 'Cord Blood', 'Placenta', 'Peripheral Blood', 'Skin', 'Cartilage', 'Other']
   
   const [stepForm, setStepForm] = useState({
     step_number: 1,
@@ -96,7 +100,9 @@ export function ProcessTemplatesPage() {
         is_active: template.is_active,
         estimated_duration_minutes: template.estimated_duration_minutes || 30,
         requires_clean_room: template.requires_clean_room || false,
-        applicable_cell_types: (template.applicable_cell_types as string[]) || []
+        applicable_cell_types: (template.applicable_cell_types as string[]) || [],
+        is_universal: (template as any).is_universal || false,
+        applicable_tissue_types: ((template as any).applicable_tissue_types as string[]) || []
       })
     } else {
       setEditingTemplate(null)
@@ -108,7 +114,9 @@ export function ProcessTemplatesPage() {
         is_active: true,
         estimated_duration_minutes: 30,
         requires_clean_room: true,
-        applicable_cell_types: []
+        applicable_cell_types: [],
+        is_universal: false,
+        applicable_tissue_types: []
       })
     }
     setShowTemplateModal(true)
@@ -161,7 +169,9 @@ export function ProcessTemplatesPage() {
       is_active: templateForm.is_active,
       estimated_duration_minutes: templateForm.estimated_duration_minutes,
       requires_clean_room: templateForm.requires_clean_room,
-      applicable_cell_types: templateForm.applicable_cell_types
+      applicable_cell_types: templateForm.applicable_cell_types,
+      is_universal: templateForm.is_universal,
+      applicable_tissue_types: templateForm.applicable_tissue_types
     }
 
     if (editingTemplate) {
@@ -515,6 +525,45 @@ export function ProcessTemplatesPage() {
                     <span className="text-sm">Активен</span>
                   </label>
                 </div>
+              </div>
+
+              {/* Universal / Tissue Types */}
+              <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
+                <label className="flex items-center gap-2 mb-3">
+                  <input
+                    type="checkbox"
+                    checked={templateForm.is_universal}
+                    onChange={(e) => setTemplateForm({...templateForm, is_universal: e.target.checked})}
+                    className="rounded"
+                  />
+                  <span className="text-sm font-medium">Универсальный процесс</span>
+                  <span className="text-xs text-blue-600">(подкормка, пассаж, заморозка и др.)</span>
+                </label>
+                
+                {!templateForm.is_universal && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Применимые типы ткани</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {tissueTypeOptions.map(tissue => (
+                        <label key={tissue} className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={templateForm.applicable_tissue_types.includes(tissue)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setTemplateForm({...templateForm, applicable_tissue_types: [...templateForm.applicable_tissue_types, tissue]})
+                              } else {
+                                setTemplateForm({...templateForm, applicable_tissue_types: templateForm.applicable_tissue_types.filter(t => t !== tissue)})
+                              }
+                            }}
+                            className="rounded"
+                          />
+                          {tissue}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t">

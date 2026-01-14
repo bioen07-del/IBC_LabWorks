@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Beaker, CheckCircle, Zap } from 'lucide-react'
+import { Beaker, CheckCircle, Zap, AlertTriangle, Info, Loader2 } from 'lucide-react'
 
 type Container = {
   id: number
@@ -10,9 +10,18 @@ type Container = {
   viability_percent: number | null
 }
 
+// ЗАДАЧА 8: Benchmark параметры
+type BenchmarkParams = {
+  expected_viability: number
+  min_viability: number
+  expected_concentration: number
+  min_concentration: number
+}
+
 type Props = {
   cultureId: number
   stepId: number
+  ccaRules?: any // CCA правила из шага
   onDataChange: (data: { containers: ContainerResult[], totalCells: number, avgViability: number }) => void
 }
 
@@ -25,10 +34,19 @@ type ContainerResult = {
   total_cells: number
 }
 
-export function CellCountingForm({ cultureId, stepId, onDataChange }: Props) {
+export function CellCountingForm({ cultureId, stepId, ccaRules, onDataChange }: Props) {
   const [containers, setContainers] = useState<Container[]>([])
   const [results, setResults] = useState<Record<number, ContainerResult>>({})
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false) // ЗАДАЧА 10: Loading state
+  
+  // ЗАДАЧА 8: Benchmark параметры из CCA правил или defaults
+  const benchmark: BenchmarkParams = {
+    expected_viability: ccaRules?.expected_viability || 85,
+    min_viability: ccaRules?.min_viability || 75,
+    expected_concentration: ccaRules?.expected_concentration || 1.0,
+    min_concentration: ccaRules?.min_concentration || 0.5
+  }
   
   // Quick fill values
   const [quickFill, setQuickFill] = useState({ concentration: '', viability: '', volume: '' })
@@ -116,7 +134,7 @@ export function CellCountingForm({ cultureId, stepId, onDataChange }: Props) {
     })
   }
 
-  if (loading) return <div className="text-center py-4 text-slate-500">Загрузка контейнеров...</div>
+  if (loading) return <div className="text-center py-4 text-slate-500 flex items-center justify-center gap-2"><Loader2 className="h-5 w-5 animate-spin" />Загрузка контейнеров...</div>
 
   if (containers.length === 0) {
     return (
@@ -132,12 +150,71 @@ export function CellCountingForm({ cultureId, stepId, onDataChange }: Props) {
     ? validViabilities.reduce((sum, r) => sum + parseFloat(r.viability), 0) / validViabilities.length
     : 0
 
+  // ЗАДАЧА 9: Валидация в реальном времени
+  const getViabilityStatus = (value: string) => {
+    const v = parseFloat(value)
+    if (!value || isNaN(v)) return 'empty'
+    if (v < benchmark.min_viability) return 'fail'
+    if (v < benchmark.expected_viability) return 'warning'
+    return 'pass'
+  }
+
+  const getConcentrationStatus = (value: string) => {
+    const c = parseFloat(value)
+    if (!value || isNaN(c)) return 'empty'
+    if (c < benchmark.min_concentration) return 'fail'
+    if (c < benchmark.expected_concentration) return 'warning'
+    return 'pass'
+  }
+
+  // Количество контейнеров с ошибками
+  const failedContainers = Object.values(results).filter(r => 
+    getViabilityStatus(r.viability) === 'fail' || getConcentrationStatus(r.concentration) === 'fail'
+  ).length
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2 text-lg font-semibold text-slate-800">
         <Beaker className="h-5 w-5 text-emerald-600" />
         Подсчёт клеток ({containers.length} контейнеров)
+        {saving && <Loader2 className="h-4 w-4 animate-spin text-blue-500" />}
       </div>
+
+      {/* ЗАДАЧА 8: Benchmark параметры */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Info className="h-4 w-4 text-blue-600" />
+          <span className="font-medium text-blue-800">Ожидаемые параметры (CCA)</span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div>
+            <span className="text-blue-600">Ожид. жизнесп.:</span>
+            <span className="font-medium text-blue-800 ml-1">{benchmark.expected_viability}%</span>
+          </div>
+          <div>
+            <span className="text-blue-600">Мин. жизнесп.:</span>
+            <span className="font-medium text-red-600 ml-1">{benchmark.min_viability}%</span>
+          </div>
+          <div>
+            <span className="text-blue-600">Ожид. конц.:</span>
+            <span className="font-medium text-blue-800 ml-1">{benchmark.expected_concentration}×10⁶/мл</span>
+          </div>
+          <div>
+            <span className="text-blue-600">Мин. конц.:</span>
+            <span className="font-medium text-red-600 ml-1">{benchmark.min_concentration}×10⁶/мл</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Предупреждение о failed контейнерах */}
+      {failedContainers > 0 && (
+        <div className="bg-red-50 border border-red-300 rounded-lg p-3 flex items-center gap-2">
+          <AlertTriangle className="h-5 w-5 text-red-600" />
+          <span className="text-red-700 font-medium">
+            {failedContainers} контейнер(ов) не проходят CCA проверку
+          </span>
+        </div>
+      )}
 
       {/* Quick Fill */}
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
@@ -185,55 +262,103 @@ export function CellCountingForm({ cultureId, stepId, onDataChange }: Props) {
           <thead className="bg-slate-50">
             <tr>
               <th className="text-left px-3 py-2 font-medium">Контейнер</th>
-              <th className="text-left px-3 py-2 font-medium">Конц. ×10⁶/мл</th>
-              <th className="text-left px-3 py-2 font-medium">Жизн. %</th>
+              <th className="text-left px-3 py-2 font-medium">
+                Конц. ×10⁶/мл
+                <span className="block text-[10px] font-normal text-slate-400">мин: {benchmark.min_concentration}</span>
+              </th>
+              <th className="text-left px-3 py-2 font-medium">
+                Жизн. %
+                <span className="block text-[10px] font-normal text-slate-400">мин: {benchmark.min_viability}%</span>
+              </th>
               <th className="text-left px-3 py-2 font-medium">Объём мл</th>
               <th className="text-left px-3 py-2 font-medium">Всего клеток</th>
+              <th className="text-left px-2 py-2 font-medium w-8">✓</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {containers.map(c => (
-              <tr key={c.id} className="hover:bg-slate-50">
-                <td className="px-3 py-2 font-mono text-xs">{c.container_code}</td>
-                <td className="px-3 py-2">
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={results[c.id]?.concentration || ''}
-                    onChange={e => updateResult(c.id, 'concentration', e.target.value)}
-                    className="w-full px-2 py-1 border rounded text-sm"
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={results[c.id]?.viability || ''}
-                    onChange={e => updateResult(c.id, 'viability', e.target.value)}
-                    className={`w-full px-2 py-1 border rounded text-sm ${
-                      parseFloat(results[c.id]?.viability || '0') < 80 && results[c.id]?.viability
-                        ? 'border-red-500 bg-red-50'
-                        : ''
-                    }`}
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={results[c.id]?.volume || ''}
-                    onChange={e => updateResult(c.id, 'volume', e.target.value)}
-                    className="w-full px-2 py-1 border rounded text-sm"
-                  />
-                </td>
-                <td className="px-3 py-2 text-slate-600">
-                  {results[c.id]?.total_cells > 0 
-                    ? `${(results[c.id].total_cells / 1000000).toFixed(2)}M`
-                    : '-'
-                  }
-                </td>
-              </tr>
-            ))}
+            {containers.map(c => {
+              const viabilityStatus = getViabilityStatus(results[c.id]?.viability || '')
+              const concStatus = getConcentrationStatus(results[c.id]?.concentration || '')
+              
+              return (
+                <tr key={c.id} className={`hover:bg-slate-50 ${
+                  viabilityStatus === 'fail' || concStatus === 'fail' ? 'bg-red-50' : ''
+                }`}>
+                  <td className="px-3 py-2 font-mono text-xs">
+                    {c.container_code}
+                    {(viabilityStatus === 'fail' || concStatus === 'fail') && (
+                      <AlertTriangle className="inline h-3 w-3 ml-1 text-red-500" />
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={results[c.id]?.concentration || ''}
+                        onChange={e => updateResult(c.id, 'concentration', e.target.value)}
+                        className={`w-full px-2 py-1 border rounded text-sm ${
+                          concStatus === 'fail' ? 'border-red-500 bg-red-50 text-red-700' :
+                          concStatus === 'warning' ? 'border-amber-400 bg-amber-50' :
+                          concStatus === 'pass' ? 'border-emerald-400' : ''
+                        }`}
+                        placeholder={`≥${benchmark.min_concentration}`}
+                      />
+                      {concStatus === 'fail' && (
+                        <span className="absolute -bottom-4 left-0 text-[10px] text-red-600">
+                          &lt; мин. {benchmark.min_concentration}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={results[c.id]?.viability || ''}
+                        onChange={e => updateResult(c.id, 'viability', e.target.value)}
+                        className={`w-full px-2 py-1 border rounded text-sm ${
+                          viabilityStatus === 'fail' ? 'border-red-500 bg-red-50 text-red-700' :
+                          viabilityStatus === 'warning' ? 'border-amber-400 bg-amber-50' :
+                          viabilityStatus === 'pass' ? 'border-emerald-400' : ''
+                        }`}
+                        placeholder={`≥${benchmark.min_viability}%`}
+                      />
+                      {viabilityStatus === 'fail' && (
+                        <span className="absolute -bottom-4 left-0 text-[10px] text-red-600">
+                          &lt; мин. {benchmark.min_viability}%
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2">
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={results[c.id]?.volume || ''}
+                      onChange={e => updateResult(c.id, 'volume', e.target.value)}
+                      className="w-full px-2 py-1 border rounded text-sm"
+                    />
+                  </td>
+                  <td className="px-3 py-2 text-slate-600">
+                    {results[c.id]?.total_cells > 0 
+                      ? `${(results[c.id].total_cells / 1000000).toFixed(2)}M`
+                      : '-'
+                    }
+                  </td>
+                  <td className="px-2 py-2">
+                    {viabilityStatus === 'pass' && concStatus === 'pass' && (
+                      <CheckCircle className="h-4 w-4 text-emerald-500" />
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
