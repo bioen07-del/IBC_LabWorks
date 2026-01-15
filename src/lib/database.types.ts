@@ -2791,7 +2791,7 @@ export type Database = {
       sex_type: "male" | "female" | "other"
       step_result_status: "draft" | "completed" | "failed_cca" | "voided"
       step_status: "pending" | "in_progress" | "completed" | "failed"
-      step_type: "measurement" | "manipulation" | "incubation" | "observation"
+      step_type: "measurement" | "manipulation" | "incubation" | "observation" | "passage" | "cell_counting" | "media_change" | "banking"
       sterility_status: "pending" | "passed" | "failed"
       transaction_type:
         | "receipt"
@@ -3050,7 +3050,7 @@ export const Constants = {
       sex_type: ["male", "female", "other"],
       step_result_status: ["draft", "completed", "failed_cca", "voided"],
       step_status: ["pending", "in_progress", "completed", "failed"],
-      step_type: ["measurement", "manipulation", "incubation", "observation"],
+      step_type: ["measurement", "manipulation", "incubation", "observation", "passage", "cell_counting", "media_change", "banking"],
       sterility_status: ["pending", "passed", "failed"],
       transaction_type: [
         "receipt",
