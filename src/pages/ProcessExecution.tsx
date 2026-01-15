@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { getCurrentUserId } from '@/hooks/useAuth'
 import { sendTelegramNotification } from '@/lib/telegram'
 import { Database } from '@/lib/database.types'
-import { Play, CheckCircle, Clock, Pause, XCircle, ChevronRight, AlertTriangle, Beaker, FlaskConical, QrCode, AlertCircle } from 'lucide-react'
+import { Play, CheckCircle, Clock, Pause, XCircle, ChevronRight, AlertTriangle, Beaker, FlaskConical, QrCode, AlertCircle, GitBranch, ArrowRight } from 'lucide-react'
 import { CellCountingForm, MediaChangeForm, BankingForm, PassageForm } from '@/components/processes/step-forms'
 import { QRScanner } from '@/components/ui/QRScanner'
 
