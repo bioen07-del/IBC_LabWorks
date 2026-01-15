@@ -5,12 +5,20 @@ import { getCurrentUserId } from '@/hooks/useAuth'
 import { sendTelegramNotification } from '@/lib/telegram'
 import { Database } from '@/lib/database.types'
 import { Play, CheckCircle, Clock, Pause, XCircle, ChevronRight, AlertTriangle, Beaker, FlaskConical, QrCode, AlertCircle } from 'lucide-react'
-import { CellCountingForm, MediaChangeForm, BankingForm } from '@/components/processes/step-forms'
+import { CellCountingForm, MediaChangeForm, BankingForm, PassageForm } from '@/components/processes/step-forms'
 import { QRScanner } from '@/components/ui/QRScanner'
 
 type ExecutedProcess = Database['public']['Tables']['executed_processes']['Row'] & {
   process_templates?: { name: string; template_code: string } | null
-  cultures?: { culture_code: string } | null
+  cultures?: {
+    culture_code: string
+    culture_type: string | null
+    donations?: {
+      donation_code: string
+      donors?: { donor_code: string; full_name: string | null } | null
+    } | null
+    orders?: { order_code: string; client_name: string } | null
+  } | null
   users?: { full_name: string | null } | null
 }
 
@@ -118,7 +126,20 @@ export function ProcessExecutionPage() {
     const [{ data: processesData }, { data: templatesData }, { data: stepsData }, { data: culturesData }] = await Promise.all([
       supabase
         .from('executed_processes')
-        .select('*, process_templates(name, template_code), cultures(culture_code), users(full_name)')
+        .select(`
+          *,
+          process_templates(name, template_code),
+          cultures(
+            culture_code,
+            culture_type,
+            donations(
+              donation_code,
+              donors(donor_code, full_name)
+            ),
+            orders(order_code, client_name)
+          ),
+          users(full_name)
+        `)
         .order('started_at', { ascending: false }),
       supabase.from('process_templates').select('*').eq('is_active', true).order('name'),
       supabase.from('process_template_steps').select('*').order('step_number'),
@@ -152,7 +173,20 @@ export function ProcessExecutionPage() {
         started_at: new Date().toISOString(),
         status: 'in_progress' as const
       })
-      .select('*, process_templates(name, template_code), cultures(culture_code), users(full_name)')
+      .select(`
+        *,
+        process_templates(name, template_code),
+        cultures(
+          culture_code,
+          culture_type,
+          donations(
+            donation_code,
+            donors(donor_code, full_name)
+          ),
+          orders(order_code, client_name)
+        ),
+        users(full_name)
+      `)
       .single()
 
     if (error) {
@@ -414,6 +448,20 @@ export function ProcessExecutionPage() {
             }}
           />
         )}
+
+        {stepType === 'passage' && (
+          <PassageForm
+            cultureId={selectedProcess.culture_id}
+            sourceContainerIds={stepForm.recorded_parameters.source_containers || []}
+            onDataChange={(data) => {
+              setStepFormData(data)
+              setStepForm(prev => ({
+                ...prev,
+                recorded_parameters: { ...prev.recorded_parameters, ...data }
+              }))
+            }}
+          />
+        )}
       </>
     )
   }
@@ -608,7 +656,53 @@ export function ProcessExecutionPage() {
                   ×
                 </button>
               </div>
-              
+
+              {/* Цепочка прослеживаемости */}
+              {selectedProcess.cultures && (
+                <div className="bg-white/50 rounded-lg p-3 mt-3">
+                  <h4 className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-1">
+                    <GitBranch className="h-3 w-3" />
+                    Цепочка прослеживаемости
+                  </h4>
+                  <div className="flex items-center gap-2 text-xs flex-wrap">
+                    {selectedProcess.cultures.donations?.donors && (
+                      <>
+                        <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded font-mono">
+                          {selectedProcess.cultures.donations.donors.donor_code}
+                        </span>
+                        <ArrowRight className="h-3 w-3 text-slate-400" />
+                      </>
+                    )}
+                    {selectedProcess.cultures.donations && (
+                      <>
+                        <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded font-mono">
+                          {selectedProcess.cultures.donations.donation_code}
+                        </span>
+                        <ArrowRight className="h-3 w-3 text-slate-400" />
+                      </>
+                    )}
+                    <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded font-mono">
+                      {selectedProcess.cultures.culture_code}
+                    </span>
+                    {selectedProcess.cultures.culture_type && (
+                      <span className="px-2 py-1 bg-cyan-100 text-cyan-700 rounded text-[10px]">
+                        {selectedProcess.cultures.culture_type === 'master_bank' && 'Мастер-банк'}
+                        {selectedProcess.cultures.culture_type === 'working_bank' && 'Рабочий банк'}
+                        {selectedProcess.cultures.culture_type === 'standard' && 'Стандарт'}
+                      </span>
+                    )}
+                    {selectedProcess.cultures.orders && (
+                      <>
+                        <ArrowRight className="h-3 w-3 text-slate-400" />
+                        <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded font-mono">
+                          {selectedProcess.cultures.orders.order_code}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Step progress */}
               <div className="flex items-center gap-1 mt-4 overflow-x-auto pb-2">
                 {executedSteps.map((step, idx) => (

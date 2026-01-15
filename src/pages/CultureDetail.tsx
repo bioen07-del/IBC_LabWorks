@@ -1376,6 +1376,17 @@ export function CultureDetail() {
                   <p className="text-xs text-purple-600">
                     Split ratio: 1:{getTotalChildCount() / Math.max(selectedContainers.length, 1)}
                   </p>
+                  {getTotalArea() > 0 && (
+                    <div className="mt-2 pt-2 border-t border-purple-200">
+                      <p className="text-xs text-purple-700 font-medium mb-1">💡 Подсказка по плотности посева:</p>
+                      <p className="text-xs text-purple-600">
+                        При 5000 кл/см² нужно: <strong>{((getTotalArea() * 5000) / 1000000).toFixed(2)}M клеток</strong>
+                      </p>
+                      <p className="text-xs text-purple-600">
+                        При 10000 кл/см² нужно: <strong>{((getTotalArea() * 10000) / 1000000).toFixed(2)}M клеток</strong>
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 

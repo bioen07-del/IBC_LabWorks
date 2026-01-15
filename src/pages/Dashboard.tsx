@@ -36,6 +36,8 @@ interface TaskItem {
   priority: string
   due_date: string | null
   status: string
+  cultures?: { culture_code: string } | null
+  deviations?: { deviation_code: string } | null
 }
 
 interface DeviationItem {
@@ -44,6 +46,8 @@ interface DeviationItem {
   description: string
   severity: string
   status: string
+  cultures?: { culture_code: string } | null
+  containers?: { container_code: string } | null
 }
 
 const CULTURE_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
@@ -147,22 +151,30 @@ export function Dashboard() {
   async function loadRecentTasks() {
     const { data } = await supabase
       .from('tasks')
-      .select('id, task_code, title, priority, due_date, status')
+      .select(`
+        id, task_code, title, priority, due_date, status,
+        cultures(culture_code),
+        deviations(deviation_code)
+      `)
       .in('status', ['pending', 'in_progress'])
       .order('due_date', { ascending: true })
       .limit(5)
-    
+
     setRecentTasks(data || [])
   }
 
   async function loadRecentDeviations() {
     const { data } = await supabase
       .from('deviations')
-      .select('id, deviation_code, description, severity, status')
+      .select(`
+        id, deviation_code, description, severity, status,
+        cultures(culture_code),
+        containers(container_code)
+      `)
       .eq('status', 'open')
       .order('detected_at', { ascending: false })
       .limit(5)
-    
+
     setRecentDeviations(data || [])
   }
 
@@ -330,10 +342,22 @@ export function Dashboard() {
             ) : (
               <div className="space-y-3">
                 {recentTasks.map(task => (
-                  <div key={task.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                    <div>
+                  <div key={task.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
+                    <div className="flex-1">
                       <p className="font-medium text-sm">{task.title}</p>
-                      <p className="text-xs text-slate-500">{task.task_code}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-slate-500 font-mono">{task.task_code}</span>
+                        {task.cultures && (
+                          <span className="text-xs text-blue-600 font-mono">
+                            → {task.cultures.culture_code}
+                          </span>
+                        )}
+                        {task.deviations && (
+                          <span className="text-xs text-amber-600 font-mono">
+                            → {task.deviations.deviation_code}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`px-2 py-0.5 rounded text-xs ${priorityColors[task.priority] || 'bg-gray-100'}`}>
@@ -369,10 +393,22 @@ export function Dashboard() {
             ) : (
               <div className="space-y-3">
                 {recentDeviations.map(dev => (
-                  <div key={dev.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                    <div>
+                  <div key={dev.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
+                    <div className="flex-1">
                       <p className="font-medium text-sm">{dev.description.slice(0, 50)}{dev.description.length > 50 ? '...' : ''}</p>
-                      <p className="text-xs text-slate-500">{dev.deviation_code}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-slate-500 font-mono">{dev.deviation_code}</span>
+                        {dev.cultures && (
+                          <span className="text-xs text-blue-600 font-mono">
+                            → {dev.cultures.culture_code}
+                          </span>
+                        )}
+                        {dev.containers && (
+                          <span className="text-xs text-emerald-600 font-mono">
+                            → {dev.containers.container_code}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <span className={`px-2 py-0.5 rounded text-xs ${severityColors[dev.severity] || 'bg-gray-100'}`}>
                       {dev.severity}

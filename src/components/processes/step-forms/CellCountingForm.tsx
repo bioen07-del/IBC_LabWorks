@@ -22,6 +22,8 @@ type Props = {
   cultureId: number
   stepId: number
   ccaRules?: any // CCA правила из шага
+  selectedContainerIds?: number[] // ИСПРАВЛЕНИЕ: только эти контейнеры для подсчета
+  operationType?: 'passage' | 'freezing' | 'thawing' | 'observation' // Тип операции
   onDataChange: (data: { containers: ContainerResult[], totalCells: number, avgViability: number }) => void
 }
 
@@ -34,7 +36,7 @@ type ContainerResult = {
   total_cells: number
 }
 
-export function CellCountingForm({ cultureId, stepId, ccaRules, onDataChange }: Props) {
+export function CellCountingForm({ cultureId, stepId, ccaRules, selectedContainerIds, operationType, onDataChange }: Props) {
   const [containers, setContainers] = useState<Container[]>([])
   const [results, setResults] = useState<Record<number, ContainerResult>>({})
   const [loading, setLoading] = useState(true)
@@ -56,13 +58,21 @@ export function CellCountingForm({ cultureId, stepId, ccaRules, onDataChange }: 
   }, [cultureId])
 
   async function loadContainers() {
-    const { data } = await supabase
+    // ИСПРАВЛЕНИЕ: Если указаны конкретные контейнеры - загружаем только их
+    // Подсчет клеток делается только на снятых клетках (при пассаже/заморозке/разморозке)
+    let query = supabase
       .from('containers')
       .select('id, container_code, volume_ml, cell_concentration, viability_percent')
-      .eq('culture_id', cultureId)
-      .eq('status', 'active')
-      .order('container_code')
-    
+
+    if (selectedContainerIds && selectedContainerIds.length > 0) {
+      // Загружаем только выбранные контейнеры
+      query = query.in('id', selectedContainerIds)
+    } else {
+      // Fallback: загружаем активные контейнеры культуры
+      query = query.eq('culture_id', cultureId).eq('status', 'active')
+    }
+
+    const { data } = await query.order('container_code')
     setContainers(data || [])
     
     // Initialize results with existing data
@@ -179,6 +189,19 @@ export function CellCountingForm({ cultureId, stepId, ccaRules, onDataChange }: 
         Подсчёт клеток ({containers.length} контейнеров)
         {saving && <Loader2 className="h-4 w-4 animate-spin text-blue-500" />}
       </div>
+
+      {/* Информация о типе операции */}
+      {operationType && (
+        <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-3 flex items-center gap-2">
+          <Info className="h-4 w-4 text-cyan-600" />
+          <span className="text-sm text-cyan-800">
+            {operationType === 'passage' && 'Подсчет после снятия клеток (пассаж)'}
+            {operationType === 'freezing' && 'Подсчет перед замораживанием'}
+            {operationType === 'thawing' && 'Подсчет после размораживания'}
+            {operationType === 'observation' && 'Подсчет для мониторинга'}
+          </span>
+        </div>
+      )}
 
       {/* ЗАДАЧА 8: Benchmark параметры */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
