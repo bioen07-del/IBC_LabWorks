@@ -161,55 +161,83 @@ export function ProcessTemplatesPage() {
   }
 
   async function saveTemplate() {
-    const payload = {
-      template_code: templateForm.template_code,
-      name: templateForm.name,
-      description: templateForm.description || null,
-      version: templateForm.version,
-      is_active: templateForm.is_active,
-      estimated_duration_minutes: templateForm.estimated_duration_minutes,
-      requires_clean_room: templateForm.requires_clean_room,
-      applicable_cell_types: templateForm.applicable_cell_types,
-      is_universal: templateForm.is_universal,
-      applicable_tissue_types: templateForm.applicable_tissue_types
-    }
+    try {
+      const payload = {
+        template_code: templateForm.template_code,
+        name: templateForm.name,
+        description: templateForm.description || null,
+        version: templateForm.version,
+        is_active: templateForm.is_active,
+        estimated_duration_minutes: templateForm.estimated_duration_minutes,
+        requires_clean_room: templateForm.requires_clean_room,
+        applicable_cell_types: templateForm.applicable_cell_types,
+        is_universal: templateForm.is_universal,
+        applicable_tissue_types: templateForm.applicable_tissue_types
+      }
 
-    if (editingTemplate) {
-      await supabase.from('process_templates').update(payload).eq('id', editingTemplate.id)
-    } else {
-      await supabase.from('process_templates').insert(payload)
+      let error
+      if (editingTemplate) {
+        const result = await supabase.from('process_templates').update(payload).eq('id', editingTemplate.id)
+        error = result.error
+      } else {
+        const result = await supabase.from('process_templates').insert(payload)
+        error = result.error
+      }
+
+      if (error) {
+        console.error('Save template error:', error)
+        alert(`Ошибка сохранения шаблона: ${error.message}`)
+        return
+      }
+
+      setShowTemplateModal(false)
+      await fetchData()
+    } catch (error) {
+      console.error('Unexpected error:', error)
+      alert('Неожиданная ошибка при сохранении шаблона')
     }
-    
-    setShowTemplateModal(false)
-    fetchData()
   }
 
   async function saveStep() {
     if (!currentTemplateId) return
 
-    const payload = {
-      process_template_id: currentTemplateId,
-      step_number: stepForm.step_number,
-      step_name: stepForm.step_name,
-      step_type: stepForm.step_type as 'measurement' | 'manipulation' | 'incubation' | 'observation',
-      description: stepForm.description || null,
-      expected_duration_minutes: stepForm.expected_duration_minutes,
-      is_critical: stepForm.is_critical,
-      requires_equipment_scan: stepForm.requires_equipment_scan,
-      requires_sop_confirmation: stepForm.requires_sop_confirmation,
-      sop_id: stepForm.sop_id,
-      required_parameters: Object.keys(stepForm.required_parameters).length > 0 ? stepForm.required_parameters : null,
-      cca_rules: Object.keys(stepForm.cca_rules).length > 0 ? stepForm.cca_rules : null
-    }
+    try {
+      const payload = {
+        process_template_id: currentTemplateId,
+        step_number: stepForm.step_number,
+        step_name: stepForm.step_name,
+        step_type: stepForm.step_type as 'measurement' | 'manipulation' | 'incubation' | 'observation' | 'passage' | 'cell_counting' | 'media_change' | 'banking',
+        description: stepForm.description || null,
+        expected_duration_minutes: stepForm.expected_duration_minutes,
+        is_critical: stepForm.is_critical,
+        requires_equipment_scan: stepForm.requires_equipment_scan,
+        requires_sop_confirmation: stepForm.requires_sop_confirmation,
+        sop_id: stepForm.sop_id,
+        required_parameters: Object.keys(stepForm.required_parameters).length > 0 ? stepForm.required_parameters : null,
+        cca_rules: Object.keys(stepForm.cca_rules).length > 0 ? stepForm.cca_rules : null
+      }
 
-    if (editingStep) {
-      await supabase.from('process_template_steps').update(payload).eq('id', editingStep.id)
-    } else {
-      await supabase.from('process_template_steps').insert(payload)
+      let error
+      if (editingStep) {
+        const result = await supabase.from('process_template_steps').update(payload).eq('id', editingStep.id)
+        error = result.error
+      } else {
+        const result = await supabase.from('process_template_steps').insert(payload)
+        error = result.error
+      }
+
+      if (error) {
+        console.error('Save step error:', error)
+        alert(`Ошибка сохранения шага: ${error.message}`)
+        return
+      }
+
+      setShowStepModal(false)
+      await fetchData()
+    } catch (error) {
+      console.error('Unexpected error:', error)
+      alert('Неожиданная ошибка при сохранении шага')
     }
-    
-    setShowStepModal(false)
-    fetchData()
   }
 
   async function deleteTemplate(id: number) {

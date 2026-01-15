@@ -68,23 +68,39 @@ export function ContainerTypesPage() {
   const generateCode = () => `CT-${Date.now().toString(36).toUpperCase()}`
 
   const handleSave = async () => {
-    const payload = {
-      type_code: formData.type_code || generateCode(),
-      type_name: formData.type_name,
-      category: formData.category as any,
-      manufacturer: formData.manufacturer || null,
-      catalog_number: formData.catalog_number || null,
-      volume_ml: formData.volume_ml ? parseFloat(formData.volume_ml) : null,
-      surface_area_cm2: formData.surface_area_cm2 ? parseFloat(formData.surface_area_cm2) : null,
-      is_active: true
+    try {
+      const payload = {
+        type_code: formData.type_code || generateCode(),
+        type_name: formData.type_name,
+        category: formData.category as any,
+        manufacturer: formData.manufacturer || null,
+        catalog_number: formData.catalog_number || null,
+        volume_ml: formData.volume_ml ? parseFloat(formData.volume_ml) : null,
+        surface_area_cm2: formData.surface_area_cm2 ? parseFloat(formData.surface_area_cm2) : null,
+        is_active: true
+      }
+
+      let error
+      if (editingId) {
+        const result = await supabase.from('container_types').update(payload).eq('id', editingId)
+        error = result.error
+      } else {
+        const result = await supabase.from('container_types').insert(payload)
+        error = result.error
+      }
+
+      if (error) {
+        console.error('Save error:', error)
+        alert(`Ошибка сохранения: ${error.message}`)
+        return
+      }
+
+      closeModal()
+      await loadTypes()
+    } catch (error) {
+      console.error('Unexpected error:', error)
+      alert('Неожиданная ошибка при сохранении')
     }
-    if (editingId) {
-      await supabase.from('container_types').update(payload).eq('id', editingId)
-    } else {
-      await supabase.from('container_types').insert(payload)
-    }
-    closeModal()
-    loadTypes()
   }
 
   const handleEdit = (item: ContainerType) => {
@@ -103,8 +119,21 @@ export function ContainerTypesPage() {
 
   const handleDelete = async (id: number) => {
     if (!confirm('Удалить тип контейнера?')) return
-    await supabase.from('container_types').delete().eq('id', id)
-    loadTypes()
+
+    try {
+      const { error } = await supabase.from('container_types').delete().eq('id', id)
+
+      if (error) {
+        console.error('Delete error:', error)
+        alert(`Ошибка удаления: ${error.message}`)
+        return
+      }
+
+      await loadTypes()
+    } catch (error) {
+      console.error('Unexpected error:', error)
+      alert('Неожиданная ошибка при удалении')
+    }
   }
 
   const closeModal = () => {
