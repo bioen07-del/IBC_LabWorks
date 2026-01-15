@@ -4,11 +4,11 @@ import { useAuth } from '@/contexts/AuthContext'
 import { FlaskConical, LogIn, AlertCircle, Shield, ShieldCheck, Microscope, User, Eye } from 'lucide-react'
 
 const QUICK_LOGIN_USERS = [
-  { email: 'admin@bmcp.lab', role: 'admin', name: 'Администратор', icon: Shield, color: 'bg-purple-100 text-purple-700 hover:bg-purple-200' },
-  { email: 'qp@bmcp.lab', role: 'qp', name: 'QP (Уполн. лицо)', icon: ShieldCheck, color: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' },
-  { email: 'qc@bmcp.lab', role: 'qc', name: 'QC (Контроль)', icon: Microscope, color: 'bg-blue-100 text-blue-700 hover:bg-blue-200' },
-  { email: 'operator@bmcp.lab', role: 'operator', name: 'Оператор', icon: User, color: 'bg-amber-100 text-amber-700 hover:bg-amber-200' },
-  { email: 'viewer@bmcp.lab', role: 'viewer', name: 'Наблюдатель', icon: Eye, color: 'bg-slate-100 text-slate-700 hover:bg-slate-200' },
+  { email: 'admin@bmcp.local', role: 'admin', name: 'Администратор', icon: Shield, color: 'bg-purple-100 text-purple-700 hover:bg-purple-200' },
+  { email: 'qp@bmcp.local', role: 'qp', name: 'QP (Уполн. лицо)', icon: ShieldCheck, color: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' },
+  { email: 'qc@bmcp.local', role: 'qc', name: 'QC (Контроль)', icon: Microscope, color: 'bg-blue-100 text-blue-700 hover:bg-blue-200' },
+  { email: 'operator@bmcp.local', role: 'operator', name: 'Оператор', icon: User, color: 'bg-amber-100 text-amber-700 hover:bg-amber-200' },
+  { email: 'viewer@bmcp.local', role: 'viewer', name: 'Наблюдатель', icon: Eye, color: 'bg-slate-100 text-slate-700 hover:bg-slate-200' },
 ]
 
 export function Login() {
@@ -74,7 +74,7 @@ export function Login() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              placeholder="operator@bmcp.lab"
+              placeholder="operator@bmcp.local"
               required
             />
           </div>
