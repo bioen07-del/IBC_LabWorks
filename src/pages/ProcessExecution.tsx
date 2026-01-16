@@ -5,7 +5,7 @@ import { getCurrentUserId } from '@/hooks/useAuth'
 import { sendTelegramNotification } from '@/lib/telegram'
 import { Database } from '@/lib/database.types'
 import { Play, CheckCircle, Clock, Pause, XCircle, ChevronRight, AlertTriangle, Beaker, FlaskConical, QrCode, AlertCircle, GitBranch, ArrowRight } from 'lucide-react'
-import { CellCountingForm, MediaChangeForm, BankingForm, PassageForm } from '@/components/processes/step-forms'
+import { CellCountingForm, MediaChangeForm, BankingForm, PassageForm, ObservationForm, ManipulationForm } from '@/components/processes/step-forms'
 import { QRScanner } from '@/components/ui/QRScanner'
 
 type ExecutedProcess = Database['public']['Tables']['executed_processes']['Row'] & {
@@ -453,6 +453,35 @@ export function ProcessExecutionPage() {
           <PassageForm
             cultureId={selectedProcess.culture_id}
             sourceContainerIds={stepForm.recorded_parameters.source_containers || []}
+            onDataChange={(data) => {
+              setStepFormData(data)
+              setStepForm(prev => ({
+                ...prev,
+                recorded_parameters: { ...prev.recorded_parameters, ...data }
+              }))
+            }}
+          />
+        )}
+
+        {stepType === 'observation' && (
+          <ObservationForm
+            stepName={step.process_template_steps?.step_name || 'Осмотр'}
+            description={step.process_template_steps?.description || ''}
+            onDataChange={(data) => {
+              setStepFormData(data)
+              setStepForm(prev => ({
+                ...prev,
+                recorded_parameters: { ...prev.recorded_parameters, ...data }
+              }))
+            }}
+          />
+        )}
+
+        {(stepType === 'manipulation' || stepType === 'incubation' || stepType === 'measurement') && (
+          <ManipulationForm
+            stepName={step.process_template_steps?.step_name || 'Манипуляция'}
+            description={step.process_template_steps?.description || ''}
+            expectedDuration={step.process_template_steps?.expected_duration_minutes}
             onDataChange={(data) => {
               setStepFormData(data)
               setStepForm(prev => ({
