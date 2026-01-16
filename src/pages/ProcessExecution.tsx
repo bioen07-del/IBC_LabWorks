@@ -317,6 +317,132 @@ export function ProcessExecutionPage() {
     })
   }
 
+  // === Функции создания контейнеров ===
+
+  async function createContainersFromPassage(cultureId: number, passageData: any, recordedParams: any) {
+    console.log('Creating containers from passage:', passageData)
+
+    if (!passageData.containerGroups || !Array.isArray(passageData.containerGroups)) {
+      console.warn('No container groups in passage data')
+      return
+    }
+
+    const containersToCreate = []
+
+    // Получаем текущий максимальный passage_number для культуры
+    const { data: existingContainers } = await supabase
+      .from('containers')
+      .select('passage_number')
+      .eq('culture_id', cultureId)
+      .order('passage_number', { ascending: false })
+      .limit(1)
+
+    const nextPassageNumber = (existingContainers?.[0]?.passage_number || 0) + 1
+
+    for (const group of passageData.containerGroups) {
+      if (!group.type_id || !group.count) continue
+
+      for (let i = 0; i < group.count; i++) {
+        const containerCode = `C-${cultureId}-P${nextPassageNumber}-${Date.now()}-${i}`
+        containersToCreate.push({
+          container_code: containerCode,
+          culture_id: cultureId,
+          container_type_id: group.type_id,
+          passage_number: nextPassageNumber,
+          split_index: i,
+          status: 'active' as const,
+          quality_hold: 'none' as const,
+          viability_percent: recordedParams.viability_percent || null,
+          cell_concentration: recordedParams.cell_concentration || null,
+          created_by_user_id: getCurrentUserId()
+        })
+      }
+    }
+
+    if (containersToCreate.length > 0) {
+      const { error } = await supabase.from('containers').insert(containersToCreate)
+      if (error) {
+        console.error('Error creating containers:', error)
+      } else {
+        console.log(`✅ Created ${containersToCreate.length} containers from passage`)
+      }
+    }
+  }
+
+  async function updateContainersFromCellCounting(containers: any[], recordedParams: any) {
+    console.log('Updating containers from cell counting:', containers)
+
+    for (const container of containers) {
+      if (!container.id) continue
+
+      await supabase
+        .from('containers')
+        .update({
+          viability_percent: container.viability || recordedParams.viability_percent || null,
+          cell_concentration: container.totalCells || recordedParams.cell_concentration || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', container.id)
+    }
+
+    console.log(`✅ Updated ${containers.length} containers with cell count data`)
+  }
+
+  async function createContainersFromBanking(cultureId: number, bankingData: any, recordedParams: any) {
+    console.log('Creating vials from banking:', bankingData)
+
+    const vialCount = bankingData.vialCount || 0
+    if (vialCount === 0) {
+      console.warn('No vials to create')
+      return
+    }
+
+    // Получаем тип контейнера для криовиал
+    const { data: cryovialType } = await supabase
+      .from('container_types')
+      .select('id')
+      .eq('category', 'cryovial')
+      .limit(1)
+      .single()
+
+    if (!cryovialType) {
+      console.error('Cryovial container type not found')
+      return
+    }
+
+    const vialsToCreate = []
+    const bankType = bankingData.bankType || 'wcb'
+
+    for (let i = 0; i < vialCount; i++) {
+      const vialCode = `${bankType.toUpperCase()}-${cultureId}-${Date.now()}-V${i + 1}`
+      vialsToCreate.push({
+        container_code: vialCode,
+        culture_id: cultureId,
+        container_type_id: cryovialType.id,
+        passage_number: recordedParams.passage_number || 0,
+        split_index: i,
+        status: 'frozen' as const,
+        quality_hold: 'none' as const,
+        viability_percent: recordedParams.viability_percent || null,
+        cell_concentration: recordedParams.cell_concentration || null,
+        cryopreservation_media: bankingData.cryoMedia || 'DMSO 10%',
+        freezing_rate: bankingData.freezingRate || '-1°C/min',
+        storage_temperature: bankingData.storageTemp || '-196°C',
+        frozen_at: new Date().toISOString(),
+        created_by_user_id: getCurrentUserId()
+      })
+    }
+
+    if (vialsToCreate.length > 0) {
+      const { error } = await supabase.from('containers').insert(vialsToCreate)
+      if (error) {
+        console.error('Error creating vials:', error)
+      } else {
+        console.log(`✅ Created ${vialsToCreate.length} cryovials from banking`)
+      }
+    }
+  }
+
   async function completeStep() {
     const step = executedSteps[currentStepIndex]
     if (!step) return
@@ -347,6 +473,22 @@ export function ProcessExecutionPage() {
     // Если CCA fail - создаём Deviation
     if (!ccaResult.passed) {
       await createDeviationForCCAFail(step, ccaResult)
+    }
+
+    // === АВТОМАТИЧЕСКОЕ СОЗДАНИЕ КОНТЕЙНЕРОВ ===
+    // После успешного завершения шагов passage или cell_counting создаём контейнеры
+    const stepType = step.process_template_steps?.step_type
+    if (ccaResult.passed && stepFormData && selectedProcess?.culture_id) {
+      if (stepType === 'passage' && stepFormData.containerGroups) {
+        // Создание контейнеров после пассажа
+        await createContainersFromPassage(selectedProcess.culture_id, stepFormData, recordedParams)
+      } else if (stepType === 'cell_counting' && stepFormData.containers) {
+        // Обновление существующих контейнеров данными подсчёта
+        await updateContainersFromCellCounting(stepFormData.containers, recordedParams)
+      } else if (stepType === 'banking' && stepFormData.vialCount) {
+        // Создание криовиал после банкинга
+        await createContainersFromBanking(selectedProcess.culture_id, stepFormData, recordedParams)
+      }
     }
 
     // Отправка уведомления в Telegram
