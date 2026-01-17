@@ -6,6 +6,7 @@ import { QRCodeModal } from '@/components/ui/QRCodeModal'
 
 type InventoryItem = Database['public']['Tables']['inventory_items']['Row']
 type Location = Database['public']['Tables']['locations']['Row']
+type ContainerType = Database['public']['Tables']['container_types']['Row']
 
 interface Equipment {
   id: number
@@ -50,10 +51,12 @@ export function InventoryPage() {
   const [locations, setLocations] = useState<Location[]>([])
   const [equipment, setEquipment] = useState<Equipment[]>([])
   const [storageZones, setStorageZones] = useState<StorageZone[]>([])
+  const [containerTypes, setContainerTypes] = useState<ContainerType[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string>('')
+  const [containerTypeFilter, setContainerTypeFilter] = useState<string>('')
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null)
   const [qrModal, setQrModal] = useState<{ code: string; name: string } | null>(null)
 
@@ -77,7 +80,8 @@ export function InventoryPage() {
     receipt_date: new Date().toISOString().split('T')[0],
     expiry_date: '',
     storage_conditions: '',
-    storage_location_id: null as number | null
+    storage_location_id: null as number | null,
+    container_type_id: null as number | null
   })
 
   useEffect(() => {
@@ -86,16 +90,24 @@ export function InventoryPage() {
 
   async function fetchData() {
     setLoading(true)
-    const [{ data: itemsData }, { data: locationsData }, { data: equipmentData }, { data: zonesData }] = await Promise.all([
+    const [
+      { data: itemsData },
+      { data: locationsData },
+      { data: equipmentData },
+      { data: zonesData },
+      { data: containerTypesData }
+    ] = await Promise.all([
       supabase.from('inventory_items').select('*').order('expiry_date', { ascending: true }),
       supabase.from('locations').select('*').eq('status', 'active'),
       supabase.from('equipment').select('id, equipment_name, equipment_code, location_id'),
-      (supabase.from as any)('storage_zones').select('*')
+      (supabase.from as any)('storage_zones').select('*'),
+      supabase.from('container_types').select('*').eq('is_active', true)
     ])
     setItems(itemsData || [])
     setLocations(locationsData || [])
     setEquipment((equipmentData as any) || [])
     setStorageZones((zonesData as any) || [])
+    setContainerTypes((containerTypesData as any) || [])
     setLoading(false)
   }
 
@@ -117,18 +129,26 @@ export function InventoryPage() {
       quantity_remaining: editingItem ? Number(formData.quantity_remaining) : Number(formData.quantity),
       storage_location_id: selectedLocationId,
       equipment_id: selectedEquipmentId,
-      storage_zone_id: selectedZoneId
+      storage_zone_id: selectedZoneId,
+      container_type_id: formData.container_type_id
     }
 
-    if (editingItem) {
-      await supabase.from('inventory_items').update(payload as any).eq('id', editingItem.id)
-    } else {
-      await supabase.from('inventory_items').insert(payload as any)
+    try {
+      if (editingItem) {
+        const { error } = await supabase.from('inventory_items').update(payload as any).eq('id', editingItem.id)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('inventory_items').insert(payload as any)
+        if (error) throw error
+      }
+      setShowModal(false)
+      setEditingItem(null)
+      resetForm()
+      fetchData()
+    } catch (error: any) {
+      console.error('Ошибка сохранения:', error)
+      alert(`Ошибка при сохранении: ${error.message}`)
     }
-    setShowModal(false)
-    setEditingItem(null)
-    resetForm()
-    fetchData()
   }
 
   function resetForm() {
@@ -147,7 +167,8 @@ export function InventoryPage() {
       receipt_date: new Date().toISOString().split('T')[0],
       expiry_date: '',
       storage_conditions: '',
-      storage_location_id: null
+      storage_location_id: null,
+      container_type_id: null
     })
     setSelectedLocationId(null)
     setSelectedEquipmentId(null)
@@ -171,7 +192,8 @@ export function InventoryPage() {
       receipt_date: item.receipt_date.split('T')[0],
       expiry_date: item.expiry_date.split('T')[0],
       storage_conditions: item.storage_conditions || '',
-      storage_location_id: item.storage_location_id
+      storage_location_id: item.storage_location_id,
+      container_type_id: (item as any).container_type_id || null
     })
     // Restore hierarchy selection
     setSelectedLocationId(item.storage_location_id)
@@ -201,7 +223,9 @@ export function InventoryPage() {
       item.item_code.toLowerCase().includes(search.toLowerCase()) ||
       (item.lot_number && item.lot_number.toLowerCase().includes(search.toLowerCase()))
     const matchesCategory = !categoryFilter || item.item_category === categoryFilter
-    return matchesSearch && matchesCategory
+    const matchesContainerType = !containerTypeFilter ||
+      (item as any).container_type_id === parseInt(containerTypeFilter)
+    return matchesSearch && matchesCategory && matchesContainerType
   })
 
   // FEFO indicator
@@ -249,6 +273,20 @@ export function InventoryPage() {
             <option key={key} value={key}>{label}</option>
           ))}
         </select>
+        <select
+          value={containerTypeFilter}
+          onChange={(e) => setContainerTypeFilter(e.target.value)}
+          className="px-4 py-2 border border-slate-300 rounded-lg"
+        >
+          <option value="">Все типы контейнеров</option>
+          {containerTypes
+            .filter(ct => ['cryovial', 'flask', 'plate'].includes(ct.category))
+            .map(ct => (
+              <option key={ct.id} value={ct.id}>
+                {ct.type_name}
+              </option>
+            ))}
+        </select>
       </div>
 
       {loading ? (
@@ -261,6 +299,7 @@ export function InventoryPage() {
                 <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Код</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Название</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Категория</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Тип контейнера</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">LOT</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Хранение</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Остаток</th>
@@ -292,6 +331,16 @@ export function InventoryPage() {
                       {item.supplier && <div className="text-xs text-slate-500">{item.supplier}</div>}
                     </td>
                     <td className="px-4 py-3 text-sm">{categoryLabels[item.item_category]}</td>
+                    <td className="px-4 py-3 text-sm">
+                      {(() => {
+                        const ct = containerTypes.find(ct => ct.id === (item as any).container_type_id)
+                        return ct ? (
+                          <span className="text-xs bg-slate-100 px-2 py-1 rounded">
+                            {ct.type_name}
+                          </span>
+                        ) : '-'
+                      })()}
+                    </td>
                     <td className="px-4 py-3 text-sm font-mono">{item.lot_number || '-'}</td>
                     <td className="px-4 py-3 text-sm text-slate-600">{getStorageDisplay(item)}</td>
                     <td className="px-4 py-3 text-sm">
@@ -563,6 +612,39 @@ export function InventoryPage() {
                   placeholder="+2...+8°C"
                 />
               </div>
+
+              {/* Тип контейнера (для виал, чашек и т.д.) */}
+              {formData.item_category === 'consumable' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h3 className="font-medium text-blue-900 mb-3">Тип контейнера (опционально)</h3>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Тип контейнера
+                    </label>
+                    <select
+                      value={formData.container_type_id || ''}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        container_type_id: e.target.value ? parseInt(e.target.value) : null
+                      })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                    >
+                      <option value="">-- Не указан --</option>
+                      {containerTypes
+                        .filter(ct => ['cryovial', 'flask', 'plate', 'bag'].includes(ct.category))
+                        .map(ct => (
+                          <option key={ct.id} value={ct.id}>
+                            {ct.type_name} ({ct.category})
+                            {ct.manufacturer && ` - ${ct.manufacturer}`}
+                          </option>
+                        ))}
+                    </select>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Укажите тип, если это криовиалы, флаконы или чашки для учёта использования
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <div className="flex justify-end gap-3 pt-4 border-t">
                 <button

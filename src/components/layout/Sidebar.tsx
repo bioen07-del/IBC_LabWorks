@@ -19,7 +19,8 @@ import {
   History,
   GitBranch,
   FileSpreadsheet,
-  Tag
+  Tag,
+  Snowflake
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 
