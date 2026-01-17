@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase, Tables } from '@/lib/supabase'
 import { getCurrentUserId } from '@/hooks/useAuth'
-import { 
-  ArrowLeft, 
-  FlaskConical, 
-  AlertTriangle, 
-  Snowflake, 
-  Pause, 
+import {
+  ArrowLeft,
+  FlaskConical,
+  AlertTriangle,
+  Snowflake,
+  Pause,
   Trash2,
   Package,
   User,
@@ -28,8 +28,14 @@ import {
   TrendingUp,
   BarChart3,
   Play,
-  Loader2
+  Loader2,
+  Clock,
+  QrCode,
+  XCircle,
+  Beaker
 } from 'lucide-react'
+import { CellCountingForm, MediaChangeForm, BankingForm, PassageForm, ObservationForm, ManipulationForm } from '@/components/processes/step-forms'
+import { QRScanner } from '@/components/ui/QRScanner'
 
 type ProcessTemplate = {
   id: number
@@ -109,6 +115,16 @@ export function CultureDetail() {
   const [activeSteps, setActiveSteps] = useState<any[]>([])
   const [currentStepIdx, setCurrentStepIdx] = useState(0)
   const [executingStep, setExecutingStep] = useState(false)
+  // Step execution data (like ProcessExecution.tsx)
+  const [stepFormData, setStepFormData] = useState<any>(null)
+  const [stepForm, setStepForm] = useState({
+    notes: '',
+    viability_percent: '',
+    cell_concentration: '',
+    sop_confirmed: false
+  })
+  const [showScanner, setShowScanner] = useState(false)
+  const [scannedEquipment, setScannedEquipment] = useState<string | null>(null)
   // CONTAINER-002: Гибкий выбор дочерних контейнеров - ОБНОВЛЕНО для множественных групп
   const [containerTypes, setContainerTypes] = useState<{id: number; type_code: string; type_name: string; surface_area_cm2?: number}[]>([])
   // Множественные группы контейнеров (Задача 2)
@@ -163,29 +179,35 @@ export function CultureDetail() {
   }
 
   async function loadProcessTemplates() {
-    // Загружаем все шаблоны с информацией о фильтрации
+    // Загружаем все шаблоны с информацией о фильтрации (ИСПРАВЛЕНО: добавлен applicable_tissue_types)
     const { data } = await supabase
       .from('process_templates')
-      .select('id, template_code, name, applicable_cell_types, is_universal')
+      .select('id, template_code, name, applicable_cell_types, is_universal, applicable_tissue_types')
       .eq('is_active', true)
       .order('name')
-    
+
     if (!data || !culture) {
       setProcessTemplates(data || [])
       return
     }
-    
-    // Фильтруем: универсальные ИЛИ подходящие по типу клеток
-    const cellType = culture.cell_type
+
+    // ИСПРАВЛЕНО: Фильтруем по типу ткани из донации, а не по cell_type
+    const tissueType = culture.donations?.tissue_type || ''
     const filtered = data.filter((t: any) => {
+      // Универсальные процессы подходят всем
       if (t.is_universal) return true
-      const types = t.applicable_cell_types as string[] || []
-      return types.length === 0 || types.some(ct => 
-        ct.toLowerCase().includes(cellType.toLowerCase()) || 
-        cellType.toLowerCase().includes(ct.toLowerCase())
+
+      // Проверяем applicable_tissue_types
+      const applicableTissues = (t.applicable_tissue_types as string[]) || []
+      if (applicableTissues.length === 0) return true // Если не указаны - подходит всем
+
+      // Ищем совпадение по типу ткани
+      return applicableTissues.some(tissue =>
+        tissue.toLowerCase().includes(tissueType.toLowerCase()) ||
+        tissueType.toLowerCase().includes(tissue.toLowerCase())
       )
     })
-    
+
     setProcessTemplates(filtered)
   }
 
@@ -314,27 +336,175 @@ export function CultureDetail() {
     }
   }
 
-  // Выполнение текущего шага
+  // === Функции создания контейнеров (из ProcessExecution.tsx) ===
+  async function createContainersFromPassage(cultureId: number, passageData: any, recordedParams: any) {
+    console.log('Creating containers from passage:', passageData)
+
+    if (!passageData.containerGroups || !Array.isArray(passageData.containerGroups)) {
+      console.warn('No container groups in passage data')
+      return
+    }
+
+    const containersToCreate = []
+
+    const { data: existingContainers } = await supabase
+      .from('containers')
+      .select('passage_number')
+      .eq('culture_id', cultureId)
+      .order('passage_number', { ascending: false })
+      .limit(1)
+
+    const nextPassageNumber = (existingContainers?.[0]?.passage_number || 0) + 1
+
+    for (const group of passageData.containerGroups) {
+      if (!group.type_id || !group.count) continue
+
+      for (let i = 0; i < group.count; i++) {
+        const containerCode = `C-${cultureId}-P${nextPassageNumber}-${Date.now()}-${i}`
+        containersToCreate.push({
+          container_code: containerCode,
+          culture_id: cultureId,
+          container_type_id: group.type_id,
+          passage_number: nextPassageNumber,
+          split_index: i,
+          status: 'active' as const,
+          quality_hold: 'none' as const,
+          viability_percent: recordedParams.viability_percent || null,
+          cell_concentration: recordedParams.cell_concentration || null,
+          created_by_user_id: getCurrentUserId()
+        })
+      }
+    }
+
+    if (containersToCreate.length > 0) {
+      const { error } = await supabase.from('containers').insert(containersToCreate)
+      if (error) {
+        console.error('Error creating containers:', error)
+      } else {
+        console.log(`✅ Created ${containersToCreate.length} containers from passage`)
+      }
+    }
+  }
+
+  async function updateContainersFromCellCounting(containers: any[], recordedParams: any) {
+    console.log('Updating containers from cell counting:', containers)
+
+    for (const container of containers) {
+      if (!container.id) continue
+
+      await supabase
+        .from('containers')
+        .update({
+          viability_percent: container.viability || recordedParams.viability_percent || null,
+          cell_concentration: container.totalCells || recordedParams.cell_concentration || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', container.id)
+    }
+
+    console.log(`✅ Updated ${containers.length} containers with cell count data`)
+  }
+
+  async function createContainersFromBanking(cultureId: number, bankingData: any, recordedParams: any) {
+    console.log('Creating vials from banking:', bankingData)
+
+    const vialCount = bankingData.vialCount || 0
+    if (vialCount === 0) {
+      console.warn('No vials to create')
+      return
+    }
+
+    const { data: cryovialType } = await supabase
+      .from('container_types')
+      .select('id')
+      .eq('category', 'cryovial')
+      .limit(1)
+      .single()
+
+    if (!cryovialType) {
+      console.error('Cryovial container type not found')
+      return
+    }
+
+    const vialsToCreate = []
+    const bankType = bankingData.bankType || 'wcb'
+
+    for (let i = 0; i < vialCount; i++) {
+      const vialCode = `${bankType.toUpperCase()}-${cultureId}-${Date.now()}-V${i + 1}`
+      vialsToCreate.push({
+        container_code: vialCode,
+        culture_id: cultureId,
+        container_type_id: cryovialType.id,
+        passage_number: recordedParams.passage_number || 0,
+        split_index: i,
+        status: 'frozen' as const,
+        quality_hold: 'none' as const,
+        viability_percent: recordedParams.viability_percent || null,
+        cell_concentration: recordedParams.cell_concentration || null,
+        cryopreservation_media: bankingData.cryoMedia || 'DMSO 10%',
+        freezing_rate: bankingData.freezingRate || '-1°C/min',
+        storage_temperature: bankingData.storageTemp || '-196°C',
+        frozen_at: new Date().toISOString(),
+        created_by_user_id: getCurrentUserId()
+      })
+    }
+
+    if (vialsToCreate.length > 0) {
+      const { error } = await supabase.from('containers').insert(vialsToCreate)
+      if (error) {
+        console.error('Error creating vials:', error)
+      } else {
+        console.log(`✅ Created ${vialsToCreate.length} cryovials from banking`)
+      }
+    }
+  }
+
+  // Выполнение текущего шага (ОБНОВЛЕНО: теперь с автоматическим созданием контейнеров)
   async function completeCurrentStep() {
-    if (!activeSteps[currentStepIdx]) return
+    if (!activeSteps[currentStepIdx] || !culture) return
     setExecutingStep(true)
-    
+
     try {
       const step = activeSteps[currentStepIdx]
-      
+
+      // Собираем параметры из формы
+      const recordedParams = {
+        ...stepForm,
+        viability_percent: stepForm.viability_percent ? parseFloat(stepForm.viability_percent) : null,
+        cell_concentration: stepForm.cell_concentration ? parseFloat(stepForm.cell_concentration) : null
+      }
+
       // Завершаем текущий шаг
       await (supabase.from('executed_steps') as any)
-        .update({ 
-          status: 'completed', 
+        .update({
+          status: 'completed',
           completed_at: new Date().toISOString(),
-          executed_by_user_id: getCurrentUserId()
+          executed_by_user_id: getCurrentUserId(),
+          notes: stepForm.notes || null,
+          recorded_parameters: recordedParams,
+          sop_confirmed_at: stepForm.sop_confirmed ? new Date().toISOString() : null
         })
         .eq('id', step.id)
-      
+
+      // === АВТОМАТИЧЕСКОЕ СОЗДАНИЕ КОНТЕЙНЕРОВ ПО ТИПУ ШАГА ===
+      const stepType = step.process_template_steps?.step_type
+      if (stepFormData && culture.id) {
+        if (stepType === 'passage' && stepFormData.containerGroups) {
+          await createContainersFromPassage(culture.id, stepFormData, recordedParams)
+          await logHistory('Passage completed', `Created containers from passage step`, {}, {containers: stepFormData.containerGroups})
+        } else if (stepType === 'cell_counting' && stepFormData.containers) {
+          await updateContainersFromCellCounting(stepFormData.containers, recordedParams)
+          await logHistory('Cell counting completed', `Updated ${stepFormData.containers.length} containers with count data`, {}, {})
+        } else if (stepType === 'banking' && stepFormData.vialCount) {
+          await createContainersFromBanking(culture.id, stepFormData, recordedParams)
+          await logHistory('Banking completed', `Created ${stepFormData.vialCount} vials`, {}, {vialCount: stepFormData.vialCount})
+        }
+      }
+
       // Обновляем локальный state
       const updatedSteps = [...activeSteps]
       updatedSteps[currentStepIdx] = { ...step, status: 'completed' }
-      
+
       // Если есть следующий шаг - запускаем его
       if (currentStepIdx + 1 < activeSteps.length) {
         const nextStep = activeSteps[currentStepIdx + 1]
@@ -344,17 +514,22 @@ export function CultureDetail() {
         updatedSteps[currentStepIdx + 1] = { ...nextStep, status: 'in_progress' }
         setActiveSteps(updatedSteps)
         setCurrentStepIdx(currentStepIdx + 1)
+        // Сбрасываем форму для следующего шага
+        setStepFormData(null)
+        setStepForm({ notes: '', viability_percent: '', cell_concentration: '', sop_confirmed: false })
       } else {
         // Все шаги выполнены - завершаем процесс
         await (supabase.from('executed_processes') as any)
           .update({ status: 'completed', completed_at: new Date().toISOString() })
           .eq('id', activeProcessId)
-        
+
         setActiveSteps(updatedSteps)
         setActiveProcessId(null)
         setActiveProcess(null)
-        logHistory('process_completed', `Процесс завершён: ${activeProcess?.process_templates?.name}`)
+        await logHistory('process_completed', `Процесс завершён: ${activeProcess?.process_templates?.name}`)
         alert('✅ Процесс успешно завершён!')
+        // Перезагружаем данные культуры чтобы увидеть новые контейнеры
+        loadCulture()
       }
     } catch (error) {
       console.error('Error completing step:', error)
@@ -812,7 +987,7 @@ export function CultureDetail() {
           
           {/* Current step */}
           {activeSteps[currentStepIdx] && (
-            <div className="bg-white rounded-lg p-4 border border-blue-100">
+            <div className="bg-white rounded-lg p-4 border border-blue-100 space-y-4">
               <div className="flex items-start justify-between">
                 <div>
                   <p className="font-medium text-slate-900">
@@ -827,19 +1002,166 @@ export function CultureDetail() {
                     </span>
                   )}
                 </div>
-                <button
-                  onClick={completeCurrentStep}
-                  disabled={executingStep}
-                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2"
-                >
-                  {executingStep ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Check className="h-4 w-4" />
-                  )}
-                  Завершить шаг
-                </button>
               </div>
+
+              {/* === СПЕЦИАЛИЗИРОВАННЫЕ ФОРМЫ ШАГОВ === */}
+              {(() => {
+                const stepType = activeSteps[currentStepIdx].process_template_steps?.step_type
+                const isCritical = activeSteps[currentStepIdx].process_template_steps?.is_critical
+
+                return (
+                  <div className="space-y-3">
+                    {/* Critical warning */}
+                    {isCritical && (
+                      <div className="bg-red-50 border border-red-300 rounded-lg p-3 flex items-start gap-2">
+                        <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-medium text-red-800">⚠️ Критический шаг</p>
+                          <p className="text-xs text-red-700">Данные проверяются CCA. При fail контейнеры блокируются.</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Equipment Scan */}
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-medium text-slate-800 flex items-center gap-2">
+                            <QrCode className="h-4 w-4" />
+                            Оборудование
+                          </h4>
+                          <p className="text-xs text-slate-500 mt-1">
+                            Отсканируйте или введите код оборудования
+                          </p>
+                        </div>
+                        {scannedEquipment ? (
+                          <div className="flex items-center gap-2">
+                            <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-lg font-mono text-sm">
+                              {scannedEquipment}
+                            </span>
+                            <button
+                              onClick={() => setScannedEquipment(null)}
+                              className="text-slate-400 hover:text-slate-600"
+                            >
+                              <XCircle className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setShowScanner(true)}
+                            className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm"
+                          >
+                            <QrCode className="h-4 w-4" />
+                            Сканировать
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Specialized forms based on step type */}
+                    {stepType === 'cell_counting' && culture && (
+                      <CellCountingForm
+                        cultureId={culture.id}
+                        stepId={activeSteps[currentStepIdx].id}
+                        onDataChange={(data) => {
+                          setStepFormData(data)
+                          setStepForm(prev => ({
+                            ...prev,
+                            viability_percent: data.avgViability.toString(),
+                            cell_concentration: (data.totalCells / 1000000).toString()
+                          }))
+                        }}
+                      />
+                    )}
+
+                    {stepType === 'media_change' && culture && (
+                      <MediaChangeForm
+                        cultureId={culture.id}
+                        onDataChange={(data) => {
+                          setStepFormData(data)
+                        }}
+                      />
+                    )}
+
+                    {stepType === 'banking' && culture && (
+                      <BankingForm
+                        cultureId={culture.id}
+                        onDataChange={(data) => {
+                          setStepFormData(data)
+                        }}
+                      />
+                    )}
+
+                    {stepType === 'passage' && culture && (
+                      <PassageForm
+                        cultureId={culture.id}
+                        sourceContainerIds={[]}
+                        onDataChange={(data) => {
+                          setStepFormData(data)
+                        }}
+                      />
+                    )}
+
+                    {stepType === 'observation' && (
+                      <ObservationForm
+                        stepName={activeSteps[currentStepIdx].process_template_steps?.step_name || 'Осмотр'}
+                        description={activeSteps[currentStepIdx].process_template_steps?.description || ''}
+                        onDataChange={(data) => {
+                          setStepFormData(data)
+                        }}
+                      />
+                    )}
+
+                    {(stepType === 'manipulation' || stepType === 'incubation' || stepType === 'measurement') && (
+                      <ManipulationForm
+                        stepName={activeSteps[currentStepIdx].process_template_steps?.step_name || 'Манипуляция'}
+                        description={activeSteps[currentStepIdx].process_template_steps?.description || ''}
+                        expectedDuration={activeSteps[currentStepIdx].process_template_steps?.expected_duration_minutes}
+                        onDataChange={(data) => {
+                          setStepFormData(data)
+                        }}
+                      />
+                    )}
+
+                    {/* Notes */}
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Примечания</label>
+                      <textarea
+                        value={stepForm.notes}
+                        onChange={(e) => setStepForm({...stepForm, notes: e.target.value})}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                        rows={2}
+                        placeholder="Комментарии к выполнению шага..."
+                      />
+                    </div>
+
+                    {/* SOP Confirmation */}
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={stepForm.sop_confirmed}
+                        onChange={(e) => setStepForm({...stepForm, sop_confirmed: e.target.checked})}
+                        className="w-4 h-4 text-emerald-600"
+                      />
+                      <span className="text-sm font-medium">Подтверждаю ознакомление с СОП</span>
+                    </label>
+
+                    {/* Complete button */}
+                    <button
+                      onClick={completeCurrentStep}
+                      disabled={executingStep}
+                      className="w-full py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {executingStep ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Check className="h-4 w-4" />
+                      )}
+                      Завершить шаг
+                    </button>
+                  </div>
+                )
+              })()}
             </div>
           )}
         </div>
@@ -1593,6 +1915,18 @@ export function CultureDetail() {
           </div>
         </div>
       )}
+
+      {/* QR Scanner Modal */}
+      <QRScanner
+        isOpen={showScanner}
+        onClose={() => setShowScanner(false)}
+        onScan={(code) => {
+          setScannedEquipment(code)
+          setShowScanner(false)
+        }}
+        title="Сканировать оборудование"
+        expectedPrefix="EQP-"
+      />
     </div>
   )
 }
