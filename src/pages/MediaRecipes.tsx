@@ -71,7 +71,7 @@ export function MediaRecipesPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    
+
     const payload = {
       ...formData,
       shelf_life_days: Number(formData.shelf_life_days)
@@ -79,41 +79,66 @@ export function MediaRecipesPage() {
 
     let recipeId: number
 
-    if (editingRecipe) {
-      await supabase.from('media_recipes').update(payload).eq('id', editingRecipe.id)
-      recipeId = editingRecipe.id
-      // Delete existing components and re-add
-      await supabase.from('media_recipe_components').delete().eq('media_recipe_id', recipeId)
-    } else {
-      const { data } = await supabase.from('media_recipes').insert(payload).select().single()
-      if (!data) return
-      recipeId = data.id
-    }
+    try {
+      if (editingRecipe) {
+        const { error: updateError } = await supabase.from('media_recipes').update(payload).eq('id', editingRecipe.id)
+        if (updateError) {
+          console.error('Update recipe error:', updateError)
+          alert(`Ошибка обновления рецепта: ${updateError.message}`)
+          return
+        }
+        recipeId = editingRecipe.id
+        // Delete existing components and re-add
+        const { error: deleteError } = await supabase.from('media_recipe_components').delete().eq('media_recipe_id', recipeId)
+        if (deleteError) {
+          console.error('Delete components error:', deleteError)
+          alert(`Ошибка удаления компонентов: ${deleteError.message}`)
+          return
+        }
+      } else {
+        const { data, error: insertError } = await supabase.from('media_recipes').insert(payload).select().single()
+        if (insertError) {
+          console.error('Insert recipe error:', insertError)
+          alert(`Ошибка создания рецепта: ${insertError.message}`)
+          return
+        }
+        if (!data) return
+        recipeId = data.id
+      }
 
-    // Add components
-    const validComponents = componentsList.filter(c => c.name && c.percentage > 0)
-    if (validComponents.length > 0) {
-      await supabase.from('media_recipe_components').insert(
-        validComponents.map((c) => ({
-          media_recipe_id: recipeId,
-          component_name: c.name,
-          component_type: c.type as any,
-          quantity_percent: c.percentage,
-          unit: '%'
-        }))
-      )
-    }
+      // Add components
+      const validComponents = componentsList.filter(c => c.name && c.percentage > 0)
+      if (validComponents.length > 0) {
+        const { error: componentError } = await supabase.from('media_recipe_components').insert(
+          validComponents.map((c) => ({
+            media_recipe_id: recipeId,
+            component_name: c.name,
+            component_type: c.type as any,
+            quantity_percent: c.percentage,
+            unit: '%'
+          }))
+        )
+        if (componentError) {
+          console.error('Insert components error:', componentError)
+          alert(`Ошибка добавления компонентов: ${componentError.message}`)
+          return
+        }
+      }
 
-    setShowModal(false)
-    setEditingRecipe(null)
-    resetForm()
-    // Clear cached components
-    setComponents(prev => {
-      const newState = { ...prev }
-      delete newState[recipeId]
-      return newState
-    })
-    fetchData()
+      setShowModal(false)
+      setEditingRecipe(null)
+      resetForm()
+      // Clear cached components
+      setComponents(prev => {
+        const newState = { ...prev }
+        delete newState[recipeId]
+        return newState
+      })
+      fetchData()
+    } catch (error) {
+      console.error('Unexpected error in handleSubmit:', error)
+      alert('Неожиданная ошибка при сохранении')
+    }
   }
 
   function resetForm() {

@@ -230,16 +230,21 @@ export function CombinedMediaPage() {
         if (!sc.inventoryItem || sc.quantityUsed <= 0) continue
 
         // Create media_component_batch if not exists, then link
-        const { data: componentBatch } = await supabase
+        const { data: componentBatch, error: selectError } = await supabase
           .from('media_component_batches')
           .select('id')
           .eq('inventory_item_id', sc.inventoryItem.id)
           .single()
 
+        if (selectError && selectError.code !== 'PGRST116') {
+          console.error('Error selecting component batch:', selectError)
+          throw new Error(`Ошибка поиска партии компонента: ${selectError.message}`)
+        }
+
         let componentBatchId = componentBatch?.id
 
         if (!componentBatchId) {
-          const { data: newBatch } = await supabase
+          const { data: newBatch, error: insertBatchError } = await supabase
             .from('media_component_batches')
             .insert({
               inventory_item_id: sc.inventoryItem.id,
@@ -253,31 +258,46 @@ export function CombinedMediaPage() {
             })
             .select()
             .single()
+
+          if (insertBatchError) {
+            console.error('Error creating component batch:', insertBatchError)
+            throw new Error(`Ошибка создания партии компонента: ${insertBatchError.message}`)
+          }
           componentBatchId = newBatch?.id
         }
 
         if (componentBatchId) {
           // Link to batch
-          await supabase.from('combined_media_batch_components').insert({
+          const { error: linkError } = await supabase.from('combined_media_batch_components').insert({
             combined_media_batch_id: batch.id,
             media_component_batch_id: componentBatchId,
             quantity_used: sc.quantityUsed,
             unit: sc.inventoryItem.unit
           })
+
+          if (linkError) {
+            console.error('Error linking component to batch:', linkError)
+            throw new Error(`Ошибка привязки компонента к партии: ${linkError.message}`)
+          }
         }
 
         // Deduct from inventory
         const newRemaining = sc.inventoryItem.quantity_remaining - sc.quantityUsed
-        await supabase
+        const { error: updateInventoryError } = await supabase
           .from('inventory_items')
-          .update({ 
+          .update({
             quantity_remaining: Math.max(0, newRemaining),
             status: newRemaining <= 0 ? 'depleted' : 'active'
           })
           .eq('id', sc.inventoryItem.id)
 
+        if (updateInventoryError) {
+          console.error('Error updating inventory:', updateInventoryError)
+          throw new Error(`Ошибка обновления инвентаря: ${updateInventoryError.message}`)
+        }
+
         // Create transaction
-        await supabase.from('inventory_transactions').insert({
+        const { error: transactionError } = await supabase.from('inventory_transactions').insert({
           inventory_item_id: sc.inventoryItem.id,
           transaction_type: 'usage',
           quantity: -sc.quantityUsed,
@@ -285,6 +305,11 @@ export function CombinedMediaPage() {
           combined_media_batch_id: batch.id,
           reason: `Приготовление среды ${batchCode}`
         })
+
+        if (transactionError) {
+          console.error('Error creating transaction:', transactionError)
+          // Non-critical, just log
+        }
       }
 
       setShowModal(false)
