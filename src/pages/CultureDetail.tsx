@@ -36,6 +36,8 @@ import {
 } from 'lucide-react'
 import { CellCountingForm, MediaChangeForm, BankingForm, PassageForm, ObservationForm, ManipulationForm } from '@/components/processes/step-forms'
 import { QRScanner } from '@/components/ui/QRScanner'
+import { ObservationButton } from '@/components/culture-actions/ObservationButton'
+import { FeedingButton } from '@/components/culture-actions/FeedingButton'
 
 type ProcessTemplate = {
   id: number
@@ -860,34 +862,12 @@ export function CultureDetail() {
           {/* UX-3: Quick Actions */}
           <div className="flex items-center gap-3">
             <span className="text-xs text-slate-400 mr-1">⚡</span>
-            <div className="relative">
-              <button
-                onClick={() => setShowProcessDropdown(!showProcessDropdown)}
-                disabled={startingProcess}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
-              >
-                {startingProcess ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-                Начать процесс
-                <ChevronDown className="h-4 w-4" />
-              </button>
-              {showProcessDropdown && (
-                <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-lg border border-slate-200 z-50 max-h-80 overflow-y-auto">
-                  <div className="p-2">
-                    <p className="px-3 py-2 text-xs font-medium text-slate-500 uppercase">Выберите процесс</p>
-                    {processTemplates.map(t => (
-                      <button
-                        key={t.id}
-                        onClick={() => handleStartProcess(t.id)}
-                        className="w-full text-left px-3 py-2 hover:bg-slate-100 rounded-lg text-sm"
-                      >
-                        <span className="font-mono text-xs text-slate-400">{t.template_code}</span>
-                        <span className="ml-2">{t.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+            {culture.status === 'active' && (
+              <>
+                <ObservationButton cultureId={culture.id} onObservationComplete={() => { loadCulture(); loadHistory() }} />
+                <FeedingButton cultureId={culture.id} onFeedingComplete={() => { loadCulture(); loadHistory() }} />
+              </>
+            )}
             {culture.status === 'active' && activeContainers > 0 && (
               <button
                 onClick={() => setShowPassageModal(true)}
