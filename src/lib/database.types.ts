@@ -130,6 +130,72 @@ export type Database = {
           },
         ]
       }
+      cell_counting_pools: {
+        Row: {
+          cell_concentration: number
+          counted_at: string
+          counted_by_user_id: number | null
+          counting_method: string | null
+          dilution_factor: number | null
+          executed_step_id: number
+          id: number
+          metadata: Json | null
+          notes: string | null
+          source_container_ids: number[]
+          total_cells: number | null
+          total_volume_ml: number
+          viability_method: string | null
+          viability_percent: number
+        }
+        Insert: {
+          cell_concentration: number
+          counted_at?: string
+          counted_by_user_id?: number | null
+          counting_method?: string | null
+          dilution_factor?: number | null
+          executed_step_id: number
+          id?: number
+          metadata?: Json | null
+          notes?: string | null
+          source_container_ids: number[]
+          total_cells?: number | null
+          total_volume_ml: number
+          viability_method?: string | null
+          viability_percent: number
+        }
+        Update: {
+          cell_concentration?: number
+          counted_at?: string
+          counted_by_user_id?: number | null
+          counting_method?: string | null
+          dilution_factor?: number | null
+          executed_step_id?: number
+          id?: number
+          metadata?: Json | null
+          notes?: string | null
+          source_container_ids?: number[]
+          total_cells?: number | null
+          total_volume_ml?: number
+          viability_method?: string | null
+          viability_percent?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cell_counting_pools_counted_by_user_id_fkey"
+            columns: ["counted_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cell_counting_pools_executed_step_id_fkey"
+            columns: ["executed_step_id"]
+            isOneToOne: false
+            referencedRelation: "executed_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       combined_media_batch_components: {
         Row: {
           combined_media_batch_id: number
@@ -325,6 +391,67 @@ export type Database = {
             columns: ["media_batch_id"]
             isOneToOne: false
             referencedRelation: "combined_media_batches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      container_seeding_plans: {
+        Row: {
+          cell_counting_pool_id: number | null
+          cells_used: number
+          container_groups: Json
+          created_at: string
+          created_by_user_id: number | null
+          density_status: string | null
+          executed_step_id: number
+          id: number
+          seeding_density_per_cm2: number
+          total_area_cm2: number
+        }
+        Insert: {
+          cell_counting_pool_id?: number | null
+          cells_used: number
+          container_groups: Json
+          created_at?: string
+          created_by_user_id?: number | null
+          density_status?: string | null
+          executed_step_id: number
+          id?: number
+          seeding_density_per_cm2: number
+          total_area_cm2: number
+        }
+        Update: {
+          cell_counting_pool_id?: number | null
+          cells_used?: number
+          container_groups?: Json
+          created_at?: string
+          created_by_user_id?: number | null
+          density_status?: string | null
+          executed_step_id?: number
+          id?: number
+          seeding_density_per_cm2?: number
+          total_area_cm2?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "container_seeding_plans_cell_counting_pool_id_fkey"
+            columns: ["cell_counting_pool_id"]
+            isOneToOne: false
+            referencedRelation: "cell_counting_pools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "container_seeding_plans_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "container_seeding_plans_executed_step_id_fkey"
+            columns: ["executed_step_id"]
+            isOneToOne: false
+            referencedRelation: "executed_steps"
             referencedColumns: ["id"]
           },
         ]
@@ -578,6 +705,80 @@ export type Database = {
           },
         ]
       }
+      culture_lifecycle_states: {
+        Row: {
+          culture_id: number
+          entered_at: string
+          entered_by_user_id: number | null
+          id: number
+          metadata: Json | null
+          previous_state:
+            | Database["public"]["Enums"]["culture_lifecycle_state"]
+            | null
+          state: Database["public"]["Enums"]["culture_lifecycle_state"]
+          transition_reason: string | null
+          triggered_by_process_id: number | null
+          triggered_by_step_id: number | null
+        }
+        Insert: {
+          culture_id: number
+          entered_at?: string
+          entered_by_user_id?: number | null
+          id?: number
+          metadata?: Json | null
+          previous_state?:
+            | Database["public"]["Enums"]["culture_lifecycle_state"]
+            | null
+          state: Database["public"]["Enums"]["culture_lifecycle_state"]
+          transition_reason?: string | null
+          triggered_by_process_id?: number | null
+          triggered_by_step_id?: number | null
+        }
+        Update: {
+          culture_id?: number
+          entered_at?: string
+          entered_by_user_id?: number | null
+          id?: number
+          metadata?: Json | null
+          previous_state?:
+            | Database["public"]["Enums"]["culture_lifecycle_state"]
+            | null
+          state?: Database["public"]["Enums"]["culture_lifecycle_state"]
+          transition_reason?: string | null
+          triggered_by_process_id?: number | null
+          triggered_by_step_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "culture_lifecycle_states_culture_id_fkey"
+            columns: ["culture_id"]
+            isOneToOne: false
+            referencedRelation: "cultures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "culture_lifecycle_states_entered_by_user_id_fkey"
+            columns: ["entered_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "culture_lifecycle_states_triggered_by_process_id_fkey"
+            columns: ["triggered_by_process_id"]
+            isOneToOne: false
+            referencedRelation: "executed_processes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "culture_lifecycle_states_triggered_by_step_id_fkey"
+            columns: ["triggered_by_step_id"]
+            isOneToOne: false
+            referencedRelation: "executed_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cultures: {
         Row: {
           at_risk: boolean | null
@@ -589,6 +790,9 @@ export type Database = {
           created_by_user_id: number | null
           culture_code: string
           culture_type: Database["public"]["Enums"]["culture_type"] | null
+          current_lifecycle_state:
+            | Database["public"]["Enums"]["culture_lifecycle_state"]
+            | null
           current_passage: number
           donation_id: number
           id: number
@@ -615,6 +819,9 @@ export type Database = {
           created_by_user_id?: number | null
           culture_code: string
           culture_type?: Database["public"]["Enums"]["culture_type"] | null
+          current_lifecycle_state?:
+            | Database["public"]["Enums"]["culture_lifecycle_state"]
+            | null
           current_passage?: number
           donation_id: number
           id?: number
@@ -641,6 +848,9 @@ export type Database = {
           created_by_user_id?: number | null
           culture_code?: string
           culture_type?: Database["public"]["Enums"]["culture_type"] | null
+          current_lifecycle_state?:
+            | Database["public"]["Enums"]["culture_lifecycle_state"]
+            | null
           current_passage?: number
           donation_id?: number
           id?: number
@@ -1376,11 +1586,138 @@ export type Database = {
           },
         ]
       }
+      frozen_vials: {
+        Row: {
+          bank_type: string
+          cells_per_ml: number | null
+          cells_per_vial: number | null
+          container_type_id: number
+          created_at: string | null
+          cryopreservation_media: string | null
+          culture_id: number
+          freezing_date: string
+          freezing_method: string | null
+          freezing_rate: string | null
+          frozen_by_user_id: number | null
+          id: number
+          notes: string | null
+          passage_number: number | null
+          qc_notes: string | null
+          qc_status: string | null
+          qc_viability_percent: number | null
+          qr_code_data: Json | null
+          status: string | null
+          storage_location_id: number | null
+          storage_position: string | null
+          storage_temperature: string | null
+          thaw_date: string | null
+          thawed_by_user_id: number | null
+          updated_at: string | null
+          vial_code: string
+          volume_ml: number | null
+        }
+        Insert: {
+          bank_type: string
+          cells_per_ml?: number | null
+          cells_per_vial?: number | null
+          container_type_id: number
+          created_at?: string | null
+          cryopreservation_media?: string | null
+          culture_id: number
+          freezing_date: string
+          freezing_method?: string | null
+          freezing_rate?: string | null
+          frozen_by_user_id?: number | null
+          id?: number
+          notes?: string | null
+          passage_number?: number | null
+          qc_notes?: string | null
+          qc_status?: string | null
+          qc_viability_percent?: number | null
+          qr_code_data?: Json | null
+          status?: string | null
+          storage_location_id?: number | null
+          storage_position?: string | null
+          storage_temperature?: string | null
+          thaw_date?: string | null
+          thawed_by_user_id?: number | null
+          updated_at?: string | null
+          vial_code: string
+          volume_ml?: number | null
+        }
+        Update: {
+          bank_type?: string
+          cells_per_ml?: number | null
+          cells_per_vial?: number | null
+          container_type_id?: number
+          created_at?: string | null
+          cryopreservation_media?: string | null
+          culture_id?: number
+          freezing_date?: string
+          freezing_method?: string | null
+          freezing_rate?: string | null
+          frozen_by_user_id?: number | null
+          id?: number
+          notes?: string | null
+          passage_number?: number | null
+          qc_notes?: string | null
+          qc_status?: string | null
+          qc_viability_percent?: number | null
+          qr_code_data?: Json | null
+          status?: string | null
+          storage_location_id?: number | null
+          storage_position?: string | null
+          storage_temperature?: string | null
+          thaw_date?: string | null
+          thawed_by_user_id?: number | null
+          updated_at?: string | null
+          vial_code?: string
+          volume_ml?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "frozen_vials_container_type_id_fkey"
+            columns: ["container_type_id"]
+            isOneToOne: false
+            referencedRelation: "container_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "frozen_vials_culture_id_fkey"
+            columns: ["culture_id"]
+            isOneToOne: false
+            referencedRelation: "cultures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "frozen_vials_frozen_by_user_id_fkey"
+            columns: ["frozen_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "frozen_vials_storage_location_id_fkey"
+            columns: ["storage_location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "frozen_vials_thawed_by_user_id_fkey"
+            columns: ["thawed_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inventory_items: {
         Row: {
           batch_code: string | null
           catalog_number: string | null
           certificate_of_analysis_url: string | null
+          container_type_id: number | null
           created_at: string
           equipment_id: number | null
           expiry_date: string
@@ -1406,6 +1743,7 @@ export type Database = {
           batch_code?: string | null
           catalog_number?: string | null
           certificate_of_analysis_url?: string | null
+          container_type_id?: number | null
           created_at?: string
           equipment_id?: number | null
           expiry_date: string
@@ -1431,6 +1769,7 @@ export type Database = {
           batch_code?: string | null
           catalog_number?: string | null
           certificate_of_analysis_url?: string | null
+          container_type_id?: number | null
           created_at?: string
           equipment_id?: number | null
           expiry_date?: string
@@ -1453,6 +1792,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "inventory_items_container_type_id_fkey"
+            columns: ["container_type_id"]
+            isOneToOne: false
+            referencedRelation: "container_types"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "inventory_items_equipment_id_fkey"
             columns: ["equipment_id"]
@@ -2690,6 +3036,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      evaluate_seeding_density: { Args: { density: number }; Returns: string }
       generate_container_code: {
         Args: {
           p_container_type_code: string
@@ -2729,6 +3076,32 @@ export type Database = {
       container_category: "flask" | "plate" | "cryovial" | "bag" | "bioreactor"
       container_quality_hold: "none" | "system" | "qp"
       container_status: "active" | "frozen" | "thawed" | "disposed" | "blocked"
+      culture_lifecycle_state:
+        | "donation_received"
+        | "isolation_in_progress"
+        | "P0_active"
+        | "P1_culturing"
+        | "P1_active"
+        | "P2_culturing"
+        | "P2_active"
+        | "P3_culturing"
+        | "P3_active"
+        | "P4_culturing"
+        | "P4_active"
+        | "P5_culturing"
+        | "P5_active"
+        | "ready_for_banking"
+        | "banking_in_progress"
+        | "master_bank_frozen"
+        | "thawing_in_progress"
+        | "working_bank_active"
+        | "production_in_progress"
+        | "ready_for_release"
+        | "qc_testing"
+        | "released"
+        | "disposed"
+        | "contaminated"
+        | "on_hold"
       culture_risk_flag: "none" | "at_risk" | "critical"
       culture_status: "active" | "frozen" | "hold" | "contaminated" | "disposed"
       culture_type: "primary" | "passage" | "mcb" | "wcb"
@@ -2821,7 +3194,15 @@ export type Database = {
       sex_type: "male" | "female" | "other"
       step_result_status: "draft" | "completed" | "failed_cca" | "voided"
       step_status: "pending" | "in_progress" | "completed" | "failed"
-      step_type: "measurement" | "manipulation" | "incubation" | "observation" | "passage" | "cell_counting" | "media_change" | "banking"
+      step_type:
+        | "measurement"
+        | "manipulation"
+        | "incubation"
+        | "observation"
+        | "passage"
+        | "cell_counting"
+        | "media_change"
+        | "banking"
       sterility_status: "pending" | "passed" | "failed"
       transaction_type:
         | "receipt"
@@ -2976,6 +3357,33 @@ export const Constants = {
       container_category: ["flask", "plate", "cryovial", "bag", "bioreactor"],
       container_quality_hold: ["none", "system", "qp"],
       container_status: ["active", "frozen", "thawed", "disposed", "blocked"],
+      culture_lifecycle_state: [
+        "donation_received",
+        "isolation_in_progress",
+        "P0_active",
+        "P1_culturing",
+        "P1_active",
+        "P2_culturing",
+        "P2_active",
+        "P3_culturing",
+        "P3_active",
+        "P4_culturing",
+        "P4_active",
+        "P5_culturing",
+        "P5_active",
+        "ready_for_banking",
+        "banking_in_progress",
+        "master_bank_frozen",
+        "thawing_in_progress",
+        "working_bank_active",
+        "production_in_progress",
+        "ready_for_release",
+        "qc_testing",
+        "released",
+        "disposed",
+        "contaminated",
+        "on_hold",
+      ],
       culture_risk_flag: ["none", "at_risk", "critical"],
       culture_status: ["active", "frozen", "hold", "contaminated", "disposed"],
       culture_type: ["primary", "passage", "mcb", "wcb"],
@@ -3080,7 +3488,16 @@ export const Constants = {
       sex_type: ["male", "female", "other"],
       step_result_status: ["draft", "completed", "failed_cca", "voided"],
       step_status: ["pending", "in_progress", "completed", "failed"],
-      step_type: ["measurement", "manipulation", "incubation", "observation", "passage", "cell_counting", "media_change", "banking"],
+      step_type: [
+        "measurement",
+        "manipulation",
+        "incubation",
+        "observation",
+        "passage",
+        "cell_counting",
+        "media_change",
+        "banking",
+      ],
       sterility_status: ["pending", "passed", "failed"],
       transaction_type: [
         "receipt",

@@ -45,36 +45,19 @@ export function ObservationButton({ cultureId, onObservationComplete }: Observat
 
       if (fetchError) throw fetchError
 
-      const intervalDays = culture?.observation_interval_days || 2
-      const nextObservationDue = new Date()
-      nextObservationDue.setDate(nextObservationDue.getDate() + intervalDays)
-
-      // Обновляем культуру
-      const { error: updateError } = await supabase
-        .from('cultures')
-        .update({
-          last_observed_at: now,
-          next_observation_due: nextObservationDue.toISOString(),
-          confluence_percent: confluenceValue,
-          morphology_notes: morphologyNotes || null,
-          sterility_status: sterilityStatus
-        })
-        .eq('id', cultureId)
-
-      if (updateError) throw updateError
+      // Note: observation tracking removed as fields don't exist in current schema
 
       // Создаем запись в истории
       const { error: historyError } = await supabase
         .from('culture_history')
         .insert({
           culture_id: cultureId,
-          action_type: 'observation',
+          action: 'observation',
           description: `Осмотр культуры: ${confluenceValue !== null ? `монослой ${confluenceValue}%` : 'процент не указан'}, стерильность: ${sterilityStatus === 'sterile' ? 'стерильна' : sterilityStatus === 'contaminated' ? 'контаминирована' : 'неизвестно'}${morphologyNotes ? `, морфология: ${morphologyNotes}` : ''}`,
-          recorded_parameters: {
+          new_values: {
             confluence_percent: confluenceValue,
             morphology_notes: morphologyNotes,
-            sterility_status: sterilityStatus,
-            next_observation_due: nextObservationDue.toISOString()
+            sterility_status: sterilityStatus
           }
         })
 

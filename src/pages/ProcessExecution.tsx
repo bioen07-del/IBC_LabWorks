@@ -23,7 +23,7 @@ type ExecutedProcess = Database['public']['Tables']['executed_processes']['Row']
 }
 
 type ExecutedStep = Database['public']['Tables']['executed_steps']['Row'] & {
-  process_template_steps?: { step_name: string; step_type: string; expected_duration_minutes: number; cca_rules: any; is_critical: boolean } | null
+  process_template_steps?: { step_name: string; step_type: string; expected_duration_minutes: number; cca_rules: any; is_critical: boolean; description: string | null } | null
   users?: { full_name: string | null } | null
 }
 
@@ -217,7 +217,7 @@ export function ProcessExecutionPage() {
     
     const { data: steps } = await supabase
       .from('executed_steps')
-      .select('*, process_template_steps(step_name, step_type, expected_duration_minutes, cca_rules, is_critical), users(full_name)')
+      .select('*, process_template_steps(step_name, step_type, expected_duration_minutes, cca_rules, is_critical, description), users(full_name)')
       .eq('executed_process_id', process.id)
       .order('id')
     
@@ -243,7 +243,7 @@ export function ProcessExecutionPage() {
     // Refresh steps
     const { data: steps } = await supabase
       .from('executed_steps')
-      .select('*, process_template_steps(step_name, step_type, expected_duration_minutes, cca_rules, is_critical), users(full_name)')
+      .select('*, process_template_steps(step_name, step_type, expected_duration_minutes, cca_rules, is_critical, description), users(full_name)')
       .eq('executed_process_id', selectedProcess!.id)
       .order('id')
     setExecutedSteps(steps || [])
@@ -506,7 +506,7 @@ export function ProcessExecutionPage() {
     // Check if all steps completed
     const { data: steps } = await supabase
       .from('executed_steps')
-      .select('*, process_template_steps(step_name, step_type, expected_duration_minutes, cca_rules, is_critical), users(full_name)')
+      .select('*, process_template_steps(step_name, step_type, expected_duration_minutes, cca_rules, is_critical, description), users(full_name)')
       .eq('executed_process_id', selectedProcess!.id)
       .order('id')
     setExecutedSteps(steps || [])

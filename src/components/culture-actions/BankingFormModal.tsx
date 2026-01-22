@@ -7,7 +7,7 @@ type Container = {
   id: number
   container_code: string
   status: string
-  cell_count: number | null
+  cell_concentration: number | null
   volume_ml: number | null
 }
 
@@ -99,7 +99,7 @@ export function BankingFormModal({ cultureId, cultureName, passageNumber, totalF
     const [containersRes, containerTypesRes, locationsRes] = await Promise.all([
       supabase
         .from('containers')
-        .select('id, container_code, status, cell_count, volume_ml')
+        .select('id, container_code, status, cell_concentration, volume_ml')
         .eq('culture_id', cultureId)
         .eq('status', 'active'),
       supabase
@@ -111,7 +111,7 @@ export function BankingFormModal({ cultureId, cultureName, passageNumber, totalF
       supabase
         .from('locations')
         .select('id, location_code, location_name, location_type')
-        .in('location_type', ['freezer', 'ln2_storage', 'cryo_storage'])
+        .in('location_type', ['freezer'])
         .eq('status', 'active')
         .order('location_name')
     ])
@@ -130,11 +130,11 @@ export function BankingFormModal({ cultureId, cultureName, passageNumber, totalF
 
     if (isSelected) {
       setSelectedContainers(selectedContainers.filter(c => c !== id))
-      setTotalCells(prev => prev - (container.cell_count || 0))
+      setTotalCells(prev => prev - (container.cell_concentration || 0))
       setTotalVolume(prev => prev - (container.volume_ml || 0))
     } else {
       setSelectedContainers([...selectedContainers, id])
-      setTotalCells(prev => prev + (container.cell_count || 0))
+      setTotalCells(prev => prev + (container.cell_concentration || 0))
       setTotalVolume(prev => prev + (container.volume_ml || 0))
     }
   }
@@ -196,10 +196,10 @@ export function BankingFormModal({ cultureId, cultureName, passageNumber, totalF
 
       if (vialsError) throw vialsError
 
-      // Update container status to 'harvested'
+      // Update container status to 'frozen'
       const { error: containersError } = await supabase
         .from('containers')
-        .update({ status: 'harvested' })
+        .update({ status: 'frozen' })
         .in('id', selectedContainers)
 
       if (containersError) throw containersError
@@ -262,9 +262,9 @@ export function BankingFormModal({ cultureId, cultureName, passageNumber, totalF
         .from('culture_history')
         .insert({
           culture_id: cultureId,
-          event_type: 'banking',
+          action: 'banking',
           description: `Создан ${bankType === 'mcb' ? 'мастер-банк' : 'рабочий банк'}: ${vialCount} виал`,
-          details: {
+          new_values: {
             bank_type: bankType,
             vial_count: vialCount,
             cells_per_vial: cellsPerVial,
@@ -272,7 +272,7 @@ export function BankingFormModal({ cultureId, cultureName, passageNumber, totalF
             containers: selectedContainers,
             container_type: containerType.type_name
           },
-          performed_by_user_id: user.id
+          performed_by: user.email
         })
 
       if (historyError) console.error('History error:', historyError)
@@ -431,7 +431,7 @@ export function BankingFormModal({ cultureId, cultureName, passageNumber, totalF
                         <div className="flex-1">
                           <div className="font-mono font-medium">{c.container_code}</div>
                           <div className="text-sm text-slate-500 mt-1 flex gap-4">
-                            <span>Клеток: {c.cell_count?.toLocaleString() || 'не указано'}</span>
+                            <span>Клеток: {c.cell_concentration?.toLocaleString() || 'не указано'}</span>
                             <span>Объём: {c.volume_ml || 'не указано'} мл</span>
                           </div>
                         </div>

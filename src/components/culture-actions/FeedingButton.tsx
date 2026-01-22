@@ -35,10 +35,10 @@ export function FeedingButton({ cultureId, onFeedingComplete }: FeedingButtonPro
 
   async function loadMedia() {
     const { data, error } = await supabase
-      .from('media')
-      .select('id, media_code, media_name, serum_concentration')
+      .from('media_recipes')
+      .select('id, recipe_code, recipe_name')
       .eq('is_active', true)
-      .order('media_name')
+      .order('recipe_name')
 
     if (error) {
       console.error('Error loading media:', error)
@@ -46,7 +46,14 @@ export function FeedingButton({ cultureId, onFeedingComplete }: FeedingButtonPro
       return
     }
 
-    setMediaList(data || [])
+    // Map to expected format
+    const mapped = data?.map(r => ({
+      id: r.id,
+      media_code: r.recipe_code,
+      media_name: r.recipe_name,
+      serum_concentration: null
+    })) || []
+    setMediaList(mapped)
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -68,47 +75,24 @@ export function FeedingButton({ cultureId, onFeedingComplete }: FeedingButtonPro
       const now = new Date().toISOString()
       const volume = parseFloat(volumeMl)
 
-      // Получаем текущие данные культуры для интервала кормления
-      const { data: culture, error: fetchError } = await supabase
-        .from('cultures')
-        .select('feeding_interval_days')
-        .eq('id', cultureId)
-        .single()
-
-      if (fetchError) throw fetchError
-
-      const intervalDays = culture?.feeding_interval_days || 3
-      const nextFeedingDue = new Date()
-      nextFeedingDue.setDate(nextFeedingDue.getDate() + intervalDays)
-
       // Получаем информацию о выбранной среде
       const selectedMedia = mediaList.find(m => m.id === parseInt(selectedMediaId))
 
-      // Обновляем культуру
-      const { error: updateError } = await supabase
-        .from('cultures')
-        .update({
-          last_fed_at: now,
-          next_feeding_due: nextFeedingDue.toISOString()
-        })
-        .eq('id', cultureId)
-
-      if (updateError) throw updateError
+      // Note: feeding tracking removed as fields don't exist in current schema
 
       // Создаем запись в истории
       const { error: historyError } = await supabase
         .from('culture_history')
         .insert({
           culture_id: cultureId,
-          action_type: 'feeding',
+          action: 'feeding',
           description: `Кормление: ${selectedMedia?.media_name || 'среда'} (${selectedMedia?.media_code || ''}), ${volume} мл${selectedMedia?.serum_concentration ? `, сыворотка ${selectedMedia.serum_concentration}%` : ''}`,
-          recorded_parameters: {
+          new_values: {
             media_id: parseInt(selectedMediaId),
             media_code: selectedMedia?.media_code,
             media_name: selectedMedia?.media_name,
             volume_ml: volume,
-            serum_concentration: selectedMedia?.serum_concentration,
-            next_feeding_due: nextFeedingDue.toISOString()
+            serum_concentration: selectedMedia?.serum_concentration
           }
         })
 
