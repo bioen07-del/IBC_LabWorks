@@ -331,36 +331,66 @@ export type Database = {
       }
       container_types: {
         Row: {
+          barcode_compatible: boolean | null
+          cap_type: string | null
           catalog_number: string | null
           category: Database["public"]["Enums"]["container_category"]
           created_at: string
           id: number
           is_active: boolean
           manufacturer: string | null
+          material: string | null
+          max_temperature_c: number | null
+          min_temperature_c: number | null
+          notes: string | null
+          sterile: boolean | null
+          suitable_for_ln2: boolean | null
+          suitable_for_minus80: boolean | null
+          suitable_for_vapor: boolean | null
           surface_area_cm2: number | null
           type_code: string
           type_name: string
           volume_ml: number | null
         }
         Insert: {
+          barcode_compatible?: boolean | null
+          cap_type?: string | null
           catalog_number?: string | null
           category: Database["public"]["Enums"]["container_category"]
           created_at?: string
           id?: number
           is_active?: boolean
           manufacturer?: string | null
+          material?: string | null
+          max_temperature_c?: number | null
+          min_temperature_c?: number | null
+          notes?: string | null
+          sterile?: boolean | null
+          suitable_for_ln2?: boolean | null
+          suitable_for_minus80?: boolean | null
+          suitable_for_vapor?: boolean | null
           surface_area_cm2?: number | null
           type_code: string
           type_name: string
           volume_ml?: number | null
         }
         Update: {
+          barcode_compatible?: boolean | null
+          cap_type?: string | null
           catalog_number?: string | null
           category?: Database["public"]["Enums"]["container_category"]
           created_at?: string
           id?: number
           is_active?: boolean
           manufacturer?: string | null
+          material?: string | null
+          max_temperature_c?: number | null
+          min_temperature_c?: number | null
+          notes?: string | null
+          sterile?: boolean | null
+          suitable_for_ln2?: boolean | null
+          suitable_for_minus80?: boolean | null
+          suitable_for_vapor?: boolean | null
           surface_area_cm2?: number | null
           type_code?: string
           type_name?: string
