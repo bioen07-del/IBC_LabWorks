@@ -70,37 +70,37 @@ export function QRCodeModal({ isOpen, onClose, code, title, subtitle }: QRCodeMo
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl p-6 max-w-sm w-full">
+      <div className="bg-card text-card-foreground rounded-xl p-6 max-w-sm w-full shadow-lg border border-border">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">{title}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
             <X className="h-5 w-5" />
           </button>
         </div>
-        
-        <div className="flex flex-col items-center py-6 bg-slate-50 rounded-lg">
-          <QRCodeSVG 
+
+        <div className="flex flex-col items-center py-6 bg-muted rounded-lg">
+          <QRCodeSVG
             id="qr-code-svg"
-            value={code} 
+            value={code}
             size={200}
             level="H"
             includeMargin
           />
-          <p className="mt-4 font-mono font-bold text-lg">{code}</p>
-          {subtitle && <p className="text-sm text-slate-500">{subtitle}</p>}
+          <p className="mt-4 font-mono font-bold text-lg text-foreground">{code}</p>
+          {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
         </div>
-        
+
         <div className="flex gap-2 mt-4">
           <button
             onClick={handleDownload}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50"
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border border-input rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors"
           >
             <Download className="h-4 w-4" />
             Скачать PNG
           </button>
           <button
             onClick={handlePrint}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50"
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border border-input rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors"
           >
             <Printer className="h-4 w-4" />
             Печать
